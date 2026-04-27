@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*.local
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+
+# Node / TypeScript
+node_modules/
+*.js
+*.d.ts
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 项目输出文件
+output/
+exports/
+*.pdf
+*.dxf
+*.png
+*.cdr
+
+# 日志
+logs/
+*.log
+
+# 临时文件
+tmp/
+temp/
