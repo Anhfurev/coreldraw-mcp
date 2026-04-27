@@ -15,6 +15,10 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-27] DECISION 第二阶段规划完成，新增 feat-005～feat-009（多工作站分布式架构） → decisions/sprint-2-plan.md
+
+[2026-04-27] DONE feat-005 MCP Server HTTP 模式完成 — server.py 支持 MCP_TRANSPORT env，新增 .mcp.json，uvicorn 依赖已补 → decisions/sprint-2-plan.md
+
 [2026-04-27] DONE 第一阶段MVP完成 — feat-002/003/004 全部 passes=true，Agent编排层+端到端测试就绪 → sessions/2026-04-27-session.md
 
 [2026-04-27] DONE feat-002核心工具实现完成，53个MCP工具函数上线，feat-002→passes=true → sessions/2026-04-27-session.md

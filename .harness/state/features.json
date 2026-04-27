@@ -1,7 +1,7 @@
 {
   "_readme": "只允许把 passes 从 false 改成 true。禁止删除条目或修改描述。",
   "_project": "标识行业 AI Agent 自动化设计系统",
-  "_sprint": "第一阶段（MVP）",
+  "_sprint": "第二阶段（多工作站分布式架构）",
   "features": [
     {
       "id": "feat-001",
@@ -26,6 +26,36 @@
       "description": "视觉预览反馈基础版 — 实现 export_preview_png 工具，支持 Agent 视觉检查与迭代修正",
       "depends_on": ["feat-002"],
       "passes": true
+    },
+    {
+      "id": "feat-005",
+      "description": "MCP Server HTTP 模式 — 切换至 streamable-http transport，env 可配置，新增 .mcp.json 支持 Claude/OpenCode 本地直连",
+      "depends_on": ["feat-001"],
+      "passes": true
+    },
+    {
+      "id": "feat-006",
+      "description": "任务队列基础层 — 基于 SQLite 实现中心任务队列，支持任务创建、状态追踪、结果存储",
+      "depends_on": ["feat-005"],
+      "passes": false
+    },
+    {
+      "id": "feat-007",
+      "description": "设计师本地 Worker — 实现 worker/polling_worker.py，轮询中心队列并通过本地 MCP HTTP 执行任务",
+      "depends_on": ["feat-006"],
+      "passes": false
+    },
+    {
+      "id": "feat-008",
+      "description": "工作站注册与在线管理 — 工作站注册表、心跳机制、中心 Agent 按在线工作站分配任务",
+      "depends_on": ["feat-007"],
+      "passes": false
+    },
+    {
+      "id": "feat-009",
+      "description": "操作并发锁机制 — 本地文件锁防止 Worker 与本地 Agent 并发操作 CorelDRAW",
+      "depends_on": ["feat-007"],
+      "passes": false
     }
   ]
 }

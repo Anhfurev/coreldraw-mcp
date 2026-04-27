@@ -1,3 +1,4 @@
+import os
 import sys
 from fastmcp import FastMCP
 from loguru import logger
@@ -6,7 +7,11 @@ from core.connection import init_connection, close_connection, get_connection
 from core.models import ToolResult
 
 
-mcp = FastMCP("coreldraw-signage")
+_MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
+_MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
+_MCP_PORT = int(os.environ.get("MCP_PORT", "8765"))
+
+mcp = FastMCP("coreldraw-signage", host=_MCP_HOST, port=_MCP_PORT)
 
 
 def setup_logging():
@@ -99,8 +104,12 @@ def main():
     register_tools()
     logger.info(f"已注册 {len(mcp._tool_manager._tools)} 个工具")
 
+    if _MCP_TRANSPORT != "stdio":
+        logger.info(f"HTTP 模式启动，监听 http://{_MCP_HOST}:{_MCP_PORT}/mcp")
+        logger.info("本地 Claude/OpenCode 可通过 .mcp.json 中的 url 连接")
+
     try:
-        mcp.run()
+        mcp.run(transport=_MCP_TRANSPORT)
     finally:
         close_connection()
         logger.info("MCP Server 已关闭")
