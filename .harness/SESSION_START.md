@@ -124,6 +124,7 @@
 - 发现新约束 → 立即追加到 `.harness/state/constraints.md`
 - 上下文窗口超过 70% → 主动告知用户，建议结束当前 Session
 - 不确定某个决定 → 停下来问，不要自己猜
+- 用户提出计划外的临时改动 → 完成后在 `_index.md` 最前面追加一行 `FIX` 或 `DONE` 条目，并 git commit `.harness/`
 
 ## 编码前置原则（Karpathy 准则）
 

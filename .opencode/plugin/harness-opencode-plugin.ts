@@ -56,6 +56,11 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
         )
       } catch {}
     }
+    const startFile = join(HARNESS_DIR, "SESSION_START.md")
+    if (existsSync(startFile)) {
+      parts.push("---\n" + readFileSync(startFile, "utf-8"))
+    }
+
     return parts.join("\n\n")
   }
 
@@ -69,8 +74,8 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
         if (!ctx) return
 
         await client.session.prompt({
-          sessionID: event.properties.id,
-          parts: [{
+          path: { id: event.properties.info.id },
+          body: { parts: [{
             type: "text",
             text: [
               "【HARNESS SESSION START】",
@@ -81,7 +86,7 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
               "请先向用户汇报以上状态（上次完成了什么、当前未完成项、建议本次做什么），",
               "等用户确认后再开始任何实质性工作。",
             ].join("\n"),
-          }],
+          }] },
         })
       }
 
@@ -97,8 +102,8 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
           : "请完成最低要求：\n1. 在 .harness/registry/sessions/ 创建今天的摘要\n2. 更新 _index.md\n3. git commit .harness/"
 
         await client.session.prompt({
-          sessionID: event.properties.id,
-          parts: [{
+          path: { id: event.properties.sessionID },
+          body: { parts: [{
             type: "text",
             text: [
               "⚠️ 【HARNESS：SESSION_END 未完成】",
@@ -107,7 +112,7 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
               "",
               endContent,
             ].join("\n"),
-          }],
+          }] },
         })
       }
     },
