@@ -13,7 +13,7 @@
       "id": "feat-002",
       "description": "核心工具实现 — 实现文档管理、文字替换、PDF/DXF 导出等基础工具，支持模板打开与内容替换",
       "depends_on": ["feat-001"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "feat-003",
