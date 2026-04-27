@@ -16,6 +16,9 @@ TODAY=$(date +%Y-%m-%d)
 # 如果 .harness 不存在，静默放行
 [ -d "$HARNESS_DIR" ] || exit 0
 
+# 只在 Claude Code 环境中拦截（opencode 由 harness-opencode-plugin.ts 处理）
+[ "${CLAUDE_CODE_HOOKS:-}" = "1" ] || exit 0
+
 # ── 检查今天是否已有 session 摘要 ──────────────────────────────
 has_session_today() {
     ls "$SESSION_DIR"/${TODAY}-*.md 2>/dev/null | head -1 | grep -q .

@@ -9,6 +9,9 @@ HARNESS_DIR=".harness"
 # 如果 .harness 目录不存在，静默退出（项目还没初始化）
 [ -d "$HARNESS_DIR" ] || exit 0
 
+# 只在 Claude Code 环境中输出（opencode/Cursor 等工具有独立机制）
+[ "${CLAUDE_CODE_HOOKS:-}" = "1" ] || exit 0
+
 # ── 注入内容开始 ──────────────────────────────────────────────
 cat << 'HEADER'
 ╔══════════════════════════════════════════════════════╗
