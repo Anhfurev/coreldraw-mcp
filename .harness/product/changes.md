@@ -8,6 +8,12 @@
 
 ## 变更记录
 
+### [2026-04-27] SCOPE GUI Agent 对话框 — 新增 Streamlit Chat UI 需求
+
+- **原因**：设计师无法直接使用 runner.py（需要写 Python 代码），需要自然语言交互界面做本地调试
+- **影响**：新增 `server/app.py`（Streamlit 应用），runner.py 需加 `run_single_stream()` 生成器方法以支持实时事件推送
+- **处理**：技术方案已分析（Streamlit + 生成器事件流），待用户确认后实施。已录入 backlog.md 待评估区
+
 ### [2026-04-27] DIRECTION 多模型支持 — runner.py 增加 OpenAI 兼容 provider
 
 - **原因**：用户需要支持 DeepSeek/Qwen 等国产模型，不能只绑 Claude
