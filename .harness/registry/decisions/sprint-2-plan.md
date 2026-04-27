@@ -1,65 +1,105 @@
-# 第二阶段规划 — 多工作站分布式设计架构
+# 第二阶段规划 — Agent 本地化 + LLM 代理 + 多智能体预留
 
 **日期**：2026-04-27  
-**背景**：第一阶段 MVP 已完成（单机验证通过）。用户确认采用任务队列架构支持多工作站场景。
+**背景**：第一阶段 MVP 已完成（单机验证通过）。架构经过多轮讨论后确定最终方案。
 
 ---
 
-## 架构决策
+## 当前活跃架构（Agent 本地化 + LLM 代理）
 
-**核心方案**：任务队列 + 本地 Worker（方案 B）
+**核心决策**：Agent 在设计师 PC 本地运行，LLM 调用通过公司服务器 LiteLLM Proxy 统一管控。
 
 ```
-中心服务器
-├── app.py (Streamlit UI)
-├── runner.py (Agent，dispatch 到队列)
-└── SQLite 任务队列
+设计师 PC（每台独立运行）
+├── app.py / Claude / OpenCode   ← 任意 UI 触发
+├── runner.py (Local Agent)      ← LangGraph，本地推理
+├── server.py (MCP Server :8765) ← HTTP 模式，feat-005 已完成
+├── CorelDRAW
+└── 模板 / 设计文件
 
-每台设计师 PC
-├── server/server.py  (MCP Server，HTTP 模式，127.0.0.1:8765)
-├── worker/polling_worker.py  (轮询队列，调本地 MCP 执行)
-└── CorelDRAW
+        ↕ LLM API 调用（OpenAI 兼容接口）
+
+公司服务器
+└── LiteLLM Proxy (feat-011)
+    ├── API Key 统一管理
+    ├── 用量监控 / 限速
+    └── 路由 → Claude / DeepSeek / Qwen
 ```
 
-**本地 Agent 直连**（无需中心调度）：
-- 设计师可用 Claude/OpenCode 直接连本地 MCP Server（HTTP 模式）
-- .mcp.json 指向 `http://127.0.0.1:8765/mcp`
-- 与中心 Agent 走队列互不干扰
-
-**并发保护**：本地 Worker 拿任务前先请求操作锁，避免与本地 Agent 冲突。
+**设计原则**：
+- 文件和工具全部本地，无网络延迟和传输开销
+- 只有 LLM API 调用走服务器，管控成本和 Key 安全
+- 设计师可用 Claude/OpenCode 直连 `.mcp.json`，无需公司 Agent 也能工作
 
 ---
 
-## 功能列表
+## 活跃功能列表
 
-| feat | 名称 | 依赖 | 优先级 |
-|------|------|------|--------|
-| feat-005 | MCP Server HTTP 模式 | feat-001 | P0，本次已完成 |
-| feat-006 | 任务队列基础层 | feat-005 | P1 |
-| feat-007 | 设计师本地 Worker | feat-006 | P1 |
-| feat-008 | 工作站注册与在线管理 | feat-007 | P2 |
-| feat-009 | 操作并发锁机制 | feat-007 | P2 |
+| feat | 名称 | 状态 |
+|------|------|------|
+| feat-005 | MCP Server HTTP 模式 | ✅ 已完成 |
+| feat-011 | LiteLLM Proxy 部署 | 待实现 |
+| feat-010 | Agent 迁移至 LangGraph + RAG | 待实现，依赖 feat-011 |
 
 ---
 
-## 功能描述
+## 预留架构：公司派单多智能体模式
 
-**feat-005**（已完成）：MCP Server 切换至 streamable-http transport，env 可配置（MCP_TRANSPORT / MCP_HOST / MCP_PORT），默认向后兼容 stdio。新增 `.mcp.json` 供 Claude/OpenCode 本地连接。
+> **状态**：设计已确定，暂不实现（feat-006/007/008/009）。待业务需要时按此方案启动。
 
-**feat-006**：基于 SQLite 实现中心任务队列。Task 含 id、workstation_id、tool_name、arguments、status（pending/running/done/failed）、result、created_at、updated_at。提供 enqueue / dequeue / complete / fail 接口。
+### 架构图
 
-**feat-007**：`worker/polling_worker.py`，约 100 行。启动时向中心注册工作站 ID，轮询队列获取分配给本工作站的任务，通过 HTTP 调用本地 MCP Server 执行，将结果写回队列。
+```
+公司服务器：Supervisor Agent（LangGraph）
+  ├── 任务分析 Node        ← 理解需求、拆分子任务
+  ├── 设计师路由 Node       ← 查注册中心，选可用工作站
+  ├── 任务派单 Node         ← 通过 SSE 长连接推送任务
+  ├── 进度监控 Node
+  └── 结果聚合 Node
 
-**feat-008**：工作站注册表（SQLite），记录 workstation_id、hostname、last_heartbeat、status。Worker 每 30 秒心跳，中心 Agent 按在线工作站分配任务。
+  注册中心（feat-008）
+  ├── 工作站表：id / hostname / last_heartbeat / status
+  ├── 心跳：本地 Agent 每 30 秒上报
+  └── 认证：工作站 ID + 密钥，任务携带 JWT
 
-**feat-009**：本地 `lock.json` 文件锁。Worker 拿任务前 acquire，完成后 release。Claude/OpenCode 直连时也通过 MCP tool `acquire_lock` / `release_lock` 参与锁协议，防止并发写同一 CorelDRAW 文档。
+每台设计师 PC：Local Agent SubGraph（LangGraph）
+  ├── 任务监听 Node         ← SSE 长连接，接收 Supervisor 推送
+  ├── LLM 推理 Node         ← via LiteLLM Proxy
+  ├── MCP 工具调用 Node     ← 本地 CorelDRAW 操作
+  └── 结果上报 Node         ← 回传 Supervisor
+```
 
-**feat-010**：将 `runner.py` 的自定义 API 调用循环迁移至 LangGraph StateGraph。
-- CorelDRAW 工具集作为子图节点保留，现有工具函数无需改动
-- 通过 LangGraph Checkpointer 实现对话历史与用户偏好持久化（SQLite 或 Redis）
-- 接入 RAG 管道：向量数据库（Chroma）+ 公司知识库嵌入（设计规范、产品目录等）
-- 其他业务域（CRM、文件管理等）作为独立节点接入同一图，支持跨域协作
-- LangGraph 原生支持 MCP 工具，现有 MCP Server 无需改动
-- 迁移成本预估：约 2 天，现有逻辑可完整复用
+### 通信方式：SSE 长连接（推荐）
 
-**选型依据**（对比 LangChain / AutoGen）：LangGraph 的有状态图模型天然契合"多步骤设计任务 + 持久记忆 + 多业务域协作"场景；LangChain 抽象层过重调试困难；AutoGen 偏研究向生产稳定性不足。
+- 本地 Agent 启动时向公司服务器发起 HTTP 长连接（SSE），主动连出，无需开放本地端口，天然穿透 NAT
+- 公司 Supervisor 通过 SSE 通道推送任务
+- 同步版本优先（HTTP 阻塞等结果）→ 验证后升级为异步队列
+
+### 认证安全方案
+
+- 本地 Agent 启动：工作站 ID + 预共享密钥 → 换取 JWT Token
+- Supervisor 派单：任务 Payload 附带签名 JWT，本地 Agent 验签后执行
+- 敏感操作（覆盖模板、批量删除）需额外 permission scope
+
+### LLM 成本优化
+
+- Supervisor：用便宜模型（DeepSeek/Qwen）做路由和拆分，不需要视觉能力
+- Local Agent：复杂推理和视觉检查时调用 Claude，批量简单任务走规则不调 LLM
+
+### 实现顺序（待启动时）
+
+1. feat-006：SSE 通信层 + 基础任务队列
+2. feat-007：Local Agent 升级为 LangGraph SubGraph，支持 `--mode worker` 队列触发
+3. feat-008：注册中心 + 心跳 + JWT 认证
+4. feat-009：并发锁（本地 Agent 与 Worker 模式共享锁协议）
+
+---
+
+## 架构演进历史
+
+| 日期 | 决策 | 原因 |
+|------|------|------|
+| 2026-04-27 | 初定任务队列 + 哑 Worker 方案 | MVP 阶段最简单 |
+| 2026-04-27 | Worker 合并进 Agent（--mode 参数） | Worker 和 Agent 职责重叠，无需两个进程 |
+| 2026-04-27 | Agent 移至本地，服务器只做 LLM Proxy | Agent 需要访问本地文件和 CorelDRAW |
+| 2026-04-27 | 派单模式升级为多智能体（Supervisor + SubGraph） | 比哑 Worker 更灵活，与 LangGraph 天然契合 |
