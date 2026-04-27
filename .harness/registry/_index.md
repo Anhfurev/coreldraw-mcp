@@ -15,6 +15,8 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-27] DONE 第一阶段MVP完成 — feat-002/003/004 全部 passes=true，Agent编排层+端到端测试就绪 → sessions/2026-04-27-session.md
+
 [2026-04-27] DONE feat-002核心工具实现完成，53个MCP工具函数上线，feat-002→passes=true → sessions/2026-04-27-session.md
 
 [2026-04-23] DECISION 项目 harness 初始化完成 → .harness/registry/decisions/init.md
