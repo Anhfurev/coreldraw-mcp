@@ -15,6 +15,8 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-27] DECISION 架构调整：Agent 移至本地运行，新增 feat-011 LiteLLM Proxy，feat-006/007/008/009 标记为公司派单预留暂不实现 → decisions/sprint-2-plan.md
+
 [2026-04-27] DECISION 新增 feat-010：Agent 层迁移至 LangGraph，支持 RAG + 记忆 + 公司级多业务域，在 feat-006 完成后启动 → decisions/sprint-2-plan.md
 
 [2026-04-27] DECISION 第二阶段规划完成，新增 feat-005～feat-010（多工作站分布式架构 + LangGraph 迁移） → decisions/sprint-2-plan.md

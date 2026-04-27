@@ -1,20 +1,26 @@
 # 当前阶段目标
 
-**阶段**：第二阶段（多工作站分布式架构）
-**目标**：在 MVP 单机基础上，构建任务队列 + 本地 Worker 架构，支持多设计师工作站并行运作，同时保留设计师本地直接使用 Claude/OpenCode 的能力
+**阶段**：第二阶段（Agent 本地化 + LLM 代理）
+**目标**：Agent 在设计师本地运行，通过公司服务器 LiteLLM Proxy 统一管理 LLM 调用，保留公司派单模式为设计预留
 
-## 本阶段功能列表
+## 本阶段活跃功能
 
-- **feat-005**: MCP Server HTTP 模式 — 切换至 streamable-http transport，env 可配置，新增 .mcp.json 支持 Claude/OpenCode 本地直连（已完成）
-- **feat-006**: 任务队列基础层 — 基于 SQLite 实现中心任务队列，支持任务创建、状态追踪、结果存储
-- **feat-007**: 设计师本地 Worker — 实现 worker/polling_worker.py，轮询中心队列并通过本地 MCP HTTP 执行任务
-- **feat-008**: 工作站注册与在线管理 — 工作站注册表、心跳机制、中心 Agent 按在线工作站分配任务
-- **feat-009**: 操作并发锁机制 — 本地文件锁防止 Worker 与本地 Agent 并发操作 CorelDRAW
-- **feat-010**: Agent 编排层迁移至 LangGraph — 替换 runner.py 自定义循环，接入 RAG 与记忆持久化，支持公司级多业务域扩展
+- **feat-005**: MCP Server HTTP 模式 ✅ 已完成
+- **feat-011**: LiteLLM Proxy 部署 — 公司服务器部署 LLM API 代理，统一管理 API Key、用量监控、多模型路由
+- **feat-010**: Agent 编排层迁移至 LangGraph — 替换 runner.py 自定义循环，接入 RAG 与记忆持久化
+
+## 本阶段预留功能（设计已规划，暂不实现）
+
+> 以下功能属于"公司派单模式"，架构已设计，待业务需要时再启动实现。
+
+- **feat-006**: 任务队列基础层（预留）
+- **feat-007**: 设计师本地 Worker（预留）
+- **feat-008**: 工作站注册与在线管理（预留）
+- **feat-009**: 操作并发锁机制（预留）
 
 ## 完成标准
 
-本阶段完成 = features.json 中 feat-006 ～ feat-010 的 passes 均为 true
+本阶段完成 = feat-011 和 feat-010 的 passes 均为 true
 
 ---
 

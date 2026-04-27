@@ -1,7 +1,7 @@
 {
-  "_readme": "只允许把 passes 从 false 改成 true。禁止删除条目或修改描述。",
+  "_readme": "只允许把 passes 从 false 改成 true。禁止删除条目或修改描述。deferred=true 表示预留设计、暂不实现。",
   "_project": "标识行业 AI Agent 自动化设计系统",
-  "_sprint": "第二阶段（多工作站分布式架构）",
+  "_sprint": "第二阶段（Agent 本地化 + LLM 代理）",
   "features": [
     {
       "id": "feat-001",
@@ -34,34 +34,48 @@
       "passes": true
     },
     {
-      "id": "feat-006",
-      "description": "任务队列基础层 — 基于 SQLite 实现中心任务队列，支持任务创建、状态追踪、结果存储",
+      "id": "feat-011",
+      "description": "LiteLLM Proxy 部署 — 公司服务器部署 LLM API 代理，统一管理 API Key、用量监控、多模型路由（Claude/DeepSeek/Qwen）",
       "depends_on": ["feat-005"],
-      "passes": false
-    },
-    {
-      "id": "feat-007",
-      "description": "设计师本地 Worker — 实现 worker/polling_worker.py，轮询中心队列并通过本地 MCP HTTP 执行任务",
-      "depends_on": ["feat-006"],
-      "passes": false
-    },
-    {
-      "id": "feat-008",
-      "description": "工作站注册与在线管理 — 工作站注册表、心跳机制、中心 Agent 按在线工作站分配任务",
-      "depends_on": ["feat-007"],
-      "passes": false
-    },
-    {
-      "id": "feat-009",
-      "description": "操作并发锁机制 — 本地文件锁防止 Worker 与本地 Agent 并发操作 CorelDRAW",
-      "depends_on": ["feat-007"],
       "passes": false
     },
     {
       "id": "feat-010",
       "description": "Agent 编排层迁移至 LangGraph — 替换 runner.py 自定义循环，接入 RAG 与记忆持久化，支持公司级多业务域扩展",
-      "depends_on": ["feat-006"],
+      "depends_on": ["feat-011"],
       "passes": false
+    },
+    {
+      "id": "feat-006",
+      "description": "任务队列基础层 — 基于 SQLite 实现中心任务队列，支持任务创建、状态追踪、结果存储",
+      "depends_on": ["feat-005"],
+      "passes": false,
+      "deferred": true,
+      "deferred_reason": "公司派单模式，暂不实现，设计预留"
+    },
+    {
+      "id": "feat-007",
+      "description": "设计师本地 Worker — 实现 worker/polling_worker.py，轮询中心队列并通过本地 MCP HTTP 执行任务",
+      "depends_on": ["feat-006"],
+      "passes": false,
+      "deferred": true,
+      "deferred_reason": "公司派单模式，暂不实现，设计预留"
+    },
+    {
+      "id": "feat-008",
+      "description": "工作站注册与在线管理 — 工作站注册表、心跳机制、中心 Agent 按在线工作站分配任务",
+      "depends_on": ["feat-007"],
+      "passes": false,
+      "deferred": true,
+      "deferred_reason": "公司派单模式，暂不实现，设计预留"
+    },
+    {
+      "id": "feat-009",
+      "description": "操作并发锁机制 — 本地文件锁防止 Worker 与本地 Agent 并发操作 CorelDRAW",
+      "depends_on": ["feat-007"],
+      "passes": false,
+      "deferred": true,
+      "deferred_reason": "公司派单模式，暂不实现，设计预留"
     }
   ]
 }
