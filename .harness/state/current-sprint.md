@@ -10,10 +10,11 @@
 - **feat-007**: 设计师本地 Worker — 实现 worker/polling_worker.py，轮询中心队列并通过本地 MCP HTTP 执行任务
 - **feat-008**: 工作站注册与在线管理 — 工作站注册表、心跳机制、中心 Agent 按在线工作站分配任务
 - **feat-009**: 操作并发锁机制 — 本地文件锁防止 Worker 与本地 Agent 并发操作 CorelDRAW
+- **feat-010**: Agent 编排层迁移至 LangGraph — 替换 runner.py 自定义循环，接入 RAG 与记忆持久化，支持公司级多业务域扩展
 
 ## 完成标准
 
-本阶段完成 = features.json 中 feat-006 ～ feat-009 的 passes 均为 true
+本阶段完成 = features.json 中 feat-006 ～ feat-010 的 passes 均为 true
 
 ---
 

@@ -53,3 +53,13 @@
 **feat-008**：工作站注册表（SQLite），记录 workstation_id、hostname、last_heartbeat、status。Worker 每 30 秒心跳，中心 Agent 按在线工作站分配任务。
 
 **feat-009**：本地 `lock.json` 文件锁。Worker 拿任务前 acquire，完成后 release。Claude/OpenCode 直连时也通过 MCP tool `acquire_lock` / `release_lock` 参与锁协议，防止并发写同一 CorelDRAW 文档。
+
+**feat-010**：将 `runner.py` 的自定义 API 调用循环迁移至 LangGraph StateGraph。
+- CorelDRAW 工具集作为子图节点保留，现有工具函数无需改动
+- 通过 LangGraph Checkpointer 实现对话历史与用户偏好持久化（SQLite 或 Redis）
+- 接入 RAG 管道：向量数据库（Chroma）+ 公司知识库嵌入（设计规范、产品目录等）
+- 其他业务域（CRM、文件管理等）作为独立节点接入同一图，支持跨域协作
+- LangGraph 原生支持 MCP 工具，现有 MCP Server 无需改动
+- 迁移成本预估：约 2 天，现有逻辑可完整复用
+
+**选型依据**（对比 LangChain / AutoGen）：LangGraph 的有状态图模型天然契合"多步骤设计任务 + 持久记忆 + 多业务域协作"场景；LangChain 抽象层过重调试困难；AutoGen 偏研究向生产稳定性不足。
