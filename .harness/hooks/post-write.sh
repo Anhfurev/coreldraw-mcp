@@ -17,10 +17,10 @@ except: print('')
 
 # ── features.json 写入后验证格式 ──────────────────────────────
 if echo "$FILE" | grep -q "features\.json"; then
-    python3 -c "
-import json, sys
+    FILE="$FILE" python3 -c "
+import json, sys, os
 try:
-    d = json.load(open('$FILE'))
+    d = json.load(open(os.environ['FILE']))
     # 检查是否有 description 被删除或修改（简单检查 features 数组不为空）
     features = d.get('features', [])
     for f in features:

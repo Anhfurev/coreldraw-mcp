@@ -1,0 +1,6 @@
+# .codex/config.toml
+# harness-kit Codex 配置
+# 注意：hooks 功能目前处于开发中，需要手动启用
+
+[features]
+hooks = true   # 启用 lifecycle hooks（必须，否则 hooks.json 不生效）

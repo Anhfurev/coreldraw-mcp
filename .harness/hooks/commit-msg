@@ -1,0 +1,10 @@
+#!/bin/sh
+MSG=$(cat "$1")
+if ! echo "$MSG" | grep -qE "^(feat|fix|docs|refactor|test|chore|style|perf|session):"; then
+  echo ""
+  echo "⚠️  [harness] commit message 格式不符合规范"
+  echo "    格式：<type>: <描述>"
+  echo "    type 可选：feat / fix / docs / refactor / test / chore / style / perf / session"
+  echo ""
+  exit 1
+fi
