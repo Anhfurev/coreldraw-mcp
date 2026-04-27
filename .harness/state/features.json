@@ -19,13 +19,13 @@
       "id": "feat-003",
       "description": "单条记录门牌生成端到端验证 — 完成从打开模板、替换文字、印前检查到导出 PDF/DXF 的完整单条流程",
       "depends_on": ["feat-002"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "feat-004",
       "description": "视觉预览反馈基础版 — 实现 export_preview_png 工具，支持 Agent 视觉检查与迭代修正",
       "depends_on": ["feat-002"],
-      "passes": false
+      "passes": true
     }
   ]
 }

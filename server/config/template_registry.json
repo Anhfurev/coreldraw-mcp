@@ -1,0 +1,140 @@
+{
+  "_description": "模板库配置 — Agent 通过此文件了解可用模板及其占位符定义",
+  "templates": {
+    "门牌_200x80_红底白字": {
+      "file": "templates/门牌_200x80_红底白字.cdr",
+      "description": "标准门牌，200×80mm，Pantone 485 红底白字",
+      "width_mm": 200,
+      "height_mm": 80,
+      "placeholders": {
+        "placeholder_room": {
+          "type": "text",
+          "max_chars": 6,
+          "desc": "房间号",
+          "default_font": "微软雅黑",
+          "default_size": 36,
+          "alignment": "center"
+        },
+        "placeholder_dept": {
+          "type": "text",
+          "max_chars": 12,
+          "desc": "部门名称",
+          "default_font": "微软雅黑",
+          "default_size": 18,
+          "alignment": "center"
+        },
+        "placeholder_floor": {
+          "type": "text",
+          "max_chars": 4,
+          "desc": "楼层",
+          "default_font": "Arial",
+          "default_size": 14,
+          "alignment": "right"
+        }
+      },
+      "layers": {
+        "print_layer": "印刷内容层（文字+底色）",
+        "laser_red": "激光雕刻-底色层（红色导出）",
+        "laser_white": "激光雕刻-文字层（白色导出）"
+      },
+      "export_profiles": {
+        "print_pdf": {
+          "color_profile": "ISO_Coated_v2",
+          "bleed_mm": 3,
+          "crop_marks": true
+        },
+        "laser_dxf": {
+          "version": "R14",
+          "layers": ["laser_red", "laser_white"]
+        }
+      }
+    },
+    "门牌_300x120_蓝底白字": {
+      "file": "templates/门牌_300x120_蓝底白字.cdr",
+      "description": "加宽门牌，300×120mm，专色蓝底白字",
+      "width_mm": 300,
+      "height_mm": 120,
+      "placeholders": {
+        "placeholder_room": {
+          "type": "text",
+          "max_chars": 8,
+          "desc": "房间号",
+          "default_font": "微软雅黑",
+          "default_size": 48,
+          "alignment": "center"
+        },
+        "placeholder_dept": {
+          "type": "text",
+          "max_chars": 16,
+          "desc": "部门名称",
+          "default_font": "微软雅黑",
+          "default_size": 24,
+          "alignment": "center"
+        },
+        "placeholder_remark": {
+          "type": "text",
+          "max_chars": 20,
+          "desc": "备注信息",
+          "default_font": "微软雅黑",
+          "default_size": 12,
+          "alignment": "left"
+        }
+      },
+      "layers": {
+        "print_layer": "印刷内容层",
+        "laser_blue": "激光雕刻-底色层（蓝色）",
+        "laser_white": "激光雕刻-文字层（白色）"
+      },
+      "export_profiles": {
+        "print_pdf": {
+          "color_profile": "ISO_Coated_v2",
+          "bleed_mm": 3,
+          "crop_marks": true
+        },
+        "laser_dxf": {
+          "version": "R14",
+          "layers": ["laser_blue", "laser_white"]
+        }
+      }
+    },
+    "导向标识_400x200_箭头": {
+      "file": "templates/导向标识_400x200_箭头.cdr",
+      "description": "导向标识牌，400×200mm，含方向箭头",
+      "width_mm": 400,
+      "height_mm": 200,
+      "placeholders": {
+        "placeholder_location": {
+          "type": "text",
+          "max_chars": 8,
+          "desc": "位置名称（如：会议室）",
+          "default_font": "微软雅黑",
+          "default_size": 42,
+          "alignment": "center"
+        },
+        "placeholder_direction": {
+          "type": "text",
+          "max_chars": 8,
+          "desc": "方向说明（如：直行50m）",
+          "default_font": "微软雅黑",
+          "default_size": 16,
+          "alignment": "center"
+        }
+      },
+      "layers": {
+        "print_layer": "印刷内容层",
+        "laser_cut": "激光切割层"
+      },
+      "export_profiles": {
+        "print_pdf": {
+          "color_profile": "ISO_Coated_v2",
+          "bleed_mm": 3,
+          "crop_marks": true
+        },
+        "laser_dxf": {
+          "version": "R14",
+          "layers": ["laser_cut"]
+        }
+      }
+    }
+  }
+}
