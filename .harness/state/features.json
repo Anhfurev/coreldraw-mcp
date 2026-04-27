@@ -1,0 +1,31 @@
+{
+  "_readme": "只允许把 passes 从 false 改成 true。禁止删除条目或修改描述。",
+  "_project": "标识行业 AI Agent 自动化设计系统",
+  "_sprint": "第一阶段（MVP）",
+  "features": [
+    {
+      "id": "feat-001",
+      "description": "MCP Server 基础框架搭建 — 基于 fastmcp 建立 MCP Server 骨架，实现 CorelDRAW COM 连接管理与统一错误处理",
+      "depends_on": [],
+      "passes": true
+    },
+    {
+      "id": "feat-002",
+      "description": "核心工具实现 — 实现文档管理、文字替换、PDF/DXF 导出等基础工具，支持模板打开与内容替换",
+      "depends_on": ["feat-001"],
+      "passes": false
+    },
+    {
+      "id": "feat-003",
+      "description": "单条记录门牌生成端到端验证 — 完成从打开模板、替换文字、印前检查到导出 PDF/DXF 的完整单条流程",
+      "depends_on": ["feat-002"],
+      "passes": false
+    },
+    {
+      "id": "feat-004",
+      "description": "视觉预览反馈基础版 — 实现 export_preview_png 工具，支持 Agent 视觉检查与迭代修正",
+      "depends_on": ["feat-002"],
+      "passes": false
+    }
+  ]
+}

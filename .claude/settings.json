@@ -1,0 +1,57 @@
+{
+  "hooks": {
+
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/session-start.sh",
+            "additionalContext": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/session-end-guard.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/guard-dangerous.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/post-write.sh",
+            "async": true,
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+
+  }
+}

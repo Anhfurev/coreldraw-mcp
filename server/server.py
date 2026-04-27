@@ -1,0 +1,110 @@
+import sys
+from fastmcp import FastMCP
+from loguru import logger
+
+from core.connection import init_connection, close_connection, get_connection
+from core.models import ToolResult
+
+
+mcp = FastMCP("coreldraw-signage")
+
+
+def setup_logging():
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        level="INFO",
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+    )
+    logger.add(
+        "logs/server.log",
+        rotation="10 MB",
+        retention="7 days",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function} - {message}",
+    )
+
+
+def register_tools():
+    from tools import document, shapes, text, colors, layers, export, preflight, data_merge
+
+    mcp.add_tool(document.open_template)
+    mcp.add_tool(document.create_document)
+    mcp.add_tool(document.save_document)
+    mcp.add_tool(document.close_document)
+    mcp.add_tool(document.add_page)
+    mcp.add_tool(document.set_page_size)
+    mcp.add_tool(document.get_document_info)
+
+    mcp.add_tool(shapes.create_rectangle)
+    mcp.add_tool(shapes.create_ellipse)
+    mcp.add_tool(shapes.create_line)
+    mcp.add_tool(shapes.import_svg)
+    mcp.add_tool(shapes.import_image)
+    mcp.add_tool(shapes.set_shape_size)
+    mcp.add_tool(shapes.set_shape_position)
+    mcp.add_tool(shapes.boolean_operation)
+    mcp.add_tool(shapes.convert_to_curves)
+    mcp.add_tool(shapes.group_shapes)
+    mcp.add_tool(shapes.find_shape_by_name)
+
+    mcp.add_tool(text.set_text_content)
+    mcp.add_tool(text.set_text_style)
+    mcp.add_tool(text.fit_text_to_frame)
+    mcp.add_tool(text.check_text_overflow)
+    mcp.add_tool(text.convert_text_to_curves)
+    mcp.add_tool(text.create_text_frame)
+
+    mcp.add_tool(colors.set_fill_cmyk)
+    mcp.add_tool(colors.set_fill_rgb)
+    mcp.add_tool(colors.set_fill_pantone)
+    mcp.add_tool(colors.set_outline)
+    mcp.add_tool(colors.set_no_fill)
+    mcp.add_tool(colors.set_no_outline)
+    mcp.add_tool(colors.check_rgb_colors)
+
+    mcp.add_tool(layers.create_layer)
+    mcp.add_tool(layers.get_layers)
+    mcp.add_tool(layers.assign_to_layer)
+    mcp.add_tool(layers.set_layer_visible)
+    mcp.add_tool(layers.lock_layer)
+
+    mcp.add_tool(export.export_pdf)
+    mcp.add_tool(export.export_dxf)
+    mcp.add_tool(export.export_ai)
+    mcp.add_tool(export.export_svg)
+    mcp.add_tool(export.export_png)
+    mcp.add_tool(export.export_preview_png)
+    mcp.add_tool(export.batch_export)
+
+    mcp.add_tool(preflight.check_dimensions)
+    mcp.add_tool(preflight.check_text_overflow_all)
+    mcp.add_tool(preflight.check_missing_fonts)
+    mcp.add_tool(preflight.get_color_report)
+
+    mcp.add_tool(data_merge.read_excel_data)
+    mcp.add_tool(data_merge.generate_barcode)
+    mcp.add_tool(data_merge.generate_qrcode)
+
+
+def main():
+    setup_logging()
+    logger.info("启动 CorelDRAW Signage MCP Server...")
+
+    if init_connection():
+        logger.info("CorelDRAW 连接成功")
+    else:
+        logger.warning("CorelDRAW 连接失败，服务器将启动但功能受限")
+
+    register_tools()
+    logger.info(f"已注册 {len(mcp._tool_manager._tools)} 个工具")
+
+    try:
+        mcp.run()
+    finally:
+        close_connection()
+        logger.info("MCP Server 已关闭")
+
+
+if __name__ == "__main__":
+    main()
