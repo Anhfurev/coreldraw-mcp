@@ -11,7 +11,6 @@
 > 格式：`- [日期] [来源] 描述`
 > 来源可以是：自己、用户反馈、竞品观察、技术债、临时想法
 
-- [2026-04-27] [用户需求] GUI Agent 对话框 — 面向标识设计人员的 Streamlit Chat UI，本地调试场景下用自然语言与 runner Agent 交互，实时看到工具调用进度和 PNG 预览
 - [2026-04-27] [设计文档] 多 CorelDRAW 实例并发 — 应对大批量订单，多台 VM 并行处理不同批次
 - [2026-04-27] [设计文档] Web UI / 订单系统对接 — 工厂订单系统通过 API 提交任务，Web 页面展示进度和结果
 - [2026-04-27] [设计文档] 自动报价联动 — 根据尺寸、材料、工艺自动计算报价，与生成流程联动
@@ -29,6 +28,7 @@
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — 核心工具实现（文档/文字/导出等 53 个工具） → features.json feat-002 ✅
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — 单条记录门牌生成端到端验证（Agent 编排层 + 测试脚本） → features.json feat-003 ✅
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — 视觉预览反馈基础版（PNG→Base64→LLM 视觉检查闭环） → features.json feat-004 ✅
+- [2026-04-27] Sprint-1 (Phase 1 扩展) — GUI Agent 对话框（Streamlit Chat UI + run_single_stream 生成器） → features.json feat-005 ✅ (commit e1595fd)
 - [2026-04-27] Sprint-2 (Phase 2 批量生产) — Excel 数据读取与批量合并 → 待开始
 - [2026-04-27] Sprint-2 (Phase 2 批量生产) — 质检工具全套完善 → 待开始
 - [2026-04-27] Sprint-2 (Phase 2 批量生产) — 错误处理与任务日志 → 待开始
