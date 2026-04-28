@@ -31,7 +31,7 @@ def setup_logging():
 
 
 def register_tools():
-    from tools import document, shapes, text, colors, layers, export, preflight, data_merge
+    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates
 
     mcp.add_tool(document.open_template)
     mcp.add_tool(document.create_document)
@@ -86,6 +86,10 @@ def register_tools():
     mcp.add_tool(preflight.check_text_overflow_all)
     mcp.add_tool(preflight.check_missing_fonts)
     mcp.add_tool(preflight.get_color_report)
+
+    mcp.add_tool(templates.list_templates)
+    mcp.add_tool(templates.get_template_info)
+    mcp.add_tool(templates.get_size_variant)
 
     mcp.add_tool(data_merge.read_excel_data)
     mcp.add_tool(data_merge.merge_record)

@@ -93,7 +93,7 @@
       "id": "feat-013",
       "description": "模板管理增强 — 实现 list_templates 工具，template_registry.json 加入 S05303 公寓门牌配置，加 size_variants 字符数→宽度规则",
       "depends_on": ["feat-012"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "feat-014",
