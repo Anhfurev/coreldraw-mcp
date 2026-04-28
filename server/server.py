@@ -31,7 +31,7 @@ def setup_logging():
 
 
 def register_tools():
-    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates
+    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates, engineering
 
     mcp.add_tool(document.open_template)
     mcp.add_tool(document.create_document)
@@ -90,6 +90,9 @@ def register_tools():
     mcp.add_tool(templates.list_templates)
     mcp.add_tool(templates.get_template_info)
     mcp.add_tool(templates.get_size_variant)
+
+    mcp.add_tool(engineering.populate_title_block)
+    mcp.add_tool(engineering.assemble_engineering_drawing)
 
     mcp.add_tool(data_merge.read_excel_data)
     mcp.add_tool(data_merge.merge_record)

@@ -99,7 +99,7 @@
       "id": "feat-014",
       "description": "工程图标题栏工具 — 新增 populate_title_block 工具填充标题栏字段（项目名/订单号/料号/设计人），配套工程图 CDR 模板框架",
       "depends_on": ["feat-013"],
-      "passes": false
+      "passes": true
     }
   ]
 }
