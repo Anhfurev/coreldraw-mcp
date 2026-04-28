@@ -15,6 +15,8 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-28 11:30] DONE feat-012/013/014/015 全部完成 — P0批量合并修复、P2代码质量、模板管理增强、工程图标题栏工具 → sessions/2026-04-28-1130.md
+
 [2026-04-28 10:00] DECISION 新增 feat-012/013/014/015 修复批量合并/模板管理/工程图/代码质量问题，feat-011/010 延后 → decisions/sprint-2-plan.md
 
 [2026-04-27] DECISION 公司派单升级为多智能体模式：Supervisor + Local Agent SubGraph，SSE 长连接通信，JWT 认证，预留设计已固化 → decisions/sprint-2-plan.md
