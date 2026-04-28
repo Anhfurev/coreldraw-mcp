@@ -88,6 +88,8 @@ def register_tools():
     mcp.add_tool(preflight.get_color_report)
 
     mcp.add_tool(data_merge.read_excel_data)
+    mcp.add_tool(data_merge.merge_record)
+    mcp.add_tool(data_merge.batch_merge)
     mcp.add_tool(data_merge.generate_barcode)
     mcp.add_tool(data_merge.generate_qrcode)
 
