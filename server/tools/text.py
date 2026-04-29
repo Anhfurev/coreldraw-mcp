@@ -29,7 +29,9 @@ def _find_text_shape(shape_id: str):
                     continue
             else:
                 return None
-        if shape.Type != _CDR_TEXT_SHAPE:
+        try:
+            _ = shape.Text
+        except Exception:
             return None
         return shape
     except Exception:

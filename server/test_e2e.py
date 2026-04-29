@@ -119,8 +119,11 @@ def test_step4_replace_text(tr: TestResult):
     # 找到第一个文字形状（room）并重命名
     text_shapes = []
     for s in shapes:
-        if s.Type == 3:  # cdrTextShape
+        try:
+            _ = s.Text  # duck-type: X6 text shapes expose .Text regardless of .Type constant
             text_shapes.append(s)
+        except Exception:
+            continue
 
     if len(text_shapes) >= 1:
         text_shapes[0].Name = "placeholder_room"

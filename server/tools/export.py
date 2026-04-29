@@ -78,18 +78,21 @@ def export_dxf(path: str, version: str = "R14", layer_filter: str = "", export_h
         if not doc:
             raise RuntimeError("没有打开的文档")
         _ensure_dir(path)
-        expopt = conn.app.CreateStructExportOptions()
-        expopt.UseColorProfile = False
-        expflt = doc.ExportEx(path, _CDR_DXF, 0, expopt)
-        expflt.BitmapType = 0  # vector only
-        expflt.TextAsCurves = True
-        expflt.Version = dxf_ver
-        expflt.Units = 3  # millimeters
-        expflt.FillUnmapped = True
+        # X6 doesn't have CreateStructExportOptions(); call ExportEx directly
+        expflt = doc.ExportEx(path, _CDR_DXF, 0)
+        for attr, val in [("BitmapType", 0), ("TextAsCurves", True),
+                          ("Version", dxf_ver), ("Units", 3), ("FillUnmapped", True)]:
+            try:
+                setattr(expflt, attr, val)
+            except Exception:
+                pass
         if layer_filter:
             filter_layers = [l.strip() for l in layer_filter.split(",") if l.strip()]
             if filter_layers:
-                expflt.LayerFilter = ",".join(filter_layers)
+                try:
+                    expflt.LayerFilter = ",".join(filter_layers)
+                except Exception:
+                    pass
         expflt.Finish()
         return {"path": path, "version": version, "text_as_curves": True}
 
@@ -157,21 +160,28 @@ def export_png(path: str, dpi: int = 300, width: int = 0, background_transparent
             export_dpi = dpi
         export_dpi = max(72, export_dpi)
 
-        rect = conn.app.CreateRect()
-        rect.Height = page_h_mm if page_h_mm > 0 else 100
-        rect.Width = page_w_mm if page_w_mm > 0 else 100
-
-        color_type = 5  # cdrRGBColorImage
-        palette_opts = conn.app.CreateStructPaletteOptions()
+        exported = False
         try:
-            doc.ExportBitmap(path, _CDR_PNG, export_dpi, export_dpi, color_type, 1000, 1000, 1,
+            rect = conn.app.CreateRect()
+            rect.Height = page_h_mm if page_h_mm > 0 else 100
+            rect.Width = page_w_mm if page_w_mm > 0 else 100
+            palette_opts = conn.app.CreateStructPaletteOptions()
+            doc.ExportBitmap(path, _CDR_PNG, export_dpi, export_dpi, 5, 1000, 1000, 1,
                              not background_transparent, False, False, False, 8, palette_opts, rect)
+            exported = True
         except Exception:
-            try:
-                doc.Export(path, _CDR_PNG, 0)
-            except Exception:
-                doc.ExportBitmap(path, 774, export_dpi, export_dpi, color_type, 1000, 1000, 1,
-                                 not background_transparent, False, False, False, 8, palette_opts, rect)
+            pass
+
+        if not exported:
+            # X6 fallback: ExportEx returns a filter object; set DPI then Finish()
+            expflt = doc.ExportEx(path, _CDR_PNG, 0)
+            for attr, val in [("ResolutionX", export_dpi), ("ResolutionY", export_dpi),
+                               ("AntiAlias", True), ("TransparentBackground", background_transparent)]:
+                try:
+                    setattr(expflt, attr, val)
+                except Exception:
+                    pass
+            expflt.Finish()
 
         return {"path": path, "dpi": export_dpi, "format": "png"}
 
@@ -199,19 +209,28 @@ def export_preview_png(path: str, width: int = 800) -> ToolResult:
             export_dpi = 72
         export_dpi = max(72, min(export_dpi, 300))
 
-        rect = conn.app.CreateRect()
-        rect.Height = page_h_mm if page_h_mm > 0 else 100
-        rect.Width = page_w_mm if page_w_mm > 0 else 100
-
-        palette_opts = conn.app.CreateStructPaletteOptions()
+        exported = False
         try:
+            rect = conn.app.CreateRect()
+            rect.Height = page_h_mm if page_h_mm > 0 else 100
+            rect.Width = page_w_mm if page_w_mm > 0 else 100
+            palette_opts = conn.app.CreateStructPaletteOptions()
             doc.ExportBitmap(path, _CDR_PNG, export_dpi, export_dpi, 5, 1000, 1000, 1,
                              True, False, False, False, 8, palette_opts, rect)
+            exported = True
         except Exception:
-            try:
-                doc.Export(path, _CDR_PNG, 0, None, palette_opts)
-            except Exception:
-                doc.Export(path, 774, 0)
+            pass
+
+        if not exported:
+            # X6 fallback: ExportEx + Finish
+            expflt = doc.ExportEx(path, _CDR_PNG, 0)
+            for attr, val in [("ResolutionX", export_dpi), ("ResolutionY", export_dpi),
+                               ("AntiAlias", True)]:
+                try:
+                    setattr(expflt, attr, val)
+                except Exception:
+                    pass
+            expflt.Finish()
 
         try:
             file_size = os.path.getsize(path)
