@@ -86,7 +86,10 @@ def test_step1_connection(tr: TestResult):
         tr.step("连接 CorelDRAW", ToolResult.ok(f"版本: {conn.status.version}"))
         return True
     else:
-        tr.step("连接 CorelDRAW", ToolResult.fail("连接失败，请确认 CorelDRAW 已启动"))
+        conn = get_connection()
+        app_name = getattr(conn.config, "app_name", "CorelDRAW.Application")
+        detail = conn.status.last_error or "未知错误"
+        tr.step("连接 CorelDRAW", ToolResult.fail(f"连接失败: {app_name}: {detail}"))
         return False
 
 

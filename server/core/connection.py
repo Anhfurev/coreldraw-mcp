@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Optional
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ if sys.platform == "win32":
 class ConnectionConfig:
     max_retries: int = 3
     retry_delay: float = 1.0
-    app_name: str = "CorelDRAW.Application"
+    app_name: str = os.environ.get("COREL_CORELDRAW_APP_NAME", "CorelDRAW.Application")
     visible: bool = True
     reconnect_on_failure: bool = False
 
