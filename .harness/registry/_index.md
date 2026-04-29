@@ -15,6 +15,8 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-28 20:30] FIX CorelDRAW X6 兼容性修复 — 形状 duck-typing、disconnect 不 Quit、reconnect_on_failure=False、ExportEx 无 struct、测试步骤顺序修正 → sessions/2026-04-28-1921.md
+
 [2026-04-28 19:21] DONE Session Q&A — 提供 CorelDRAW X6 MCP 连通性测试指南，用户待跑 test_e2e.py 验证 → sessions/2026-04-28-1921.md
 
 [2026-04-28 11:30] DONE feat-012/013/014/015 全部完成 — P0批量合并修复、P2代码质量、模板管理增强、工程图标题栏工具 → sessions/2026-04-28-1130.md

@@ -258,8 +258,8 @@ def main():
     test_step3_create_placeholders(tr)
     test_step4_replace_text(tr)
     test_step5_text_overflow(tr)
-    test_step6_preflight(tr)
-    test_step8_layers(tr)
+    test_step8_layers(tr)     # assign to layer BEFORE convert_to_curves (step6)
+    test_step6_preflight(tr)  # convert_to_curves must come after layer assignment
     test_step7_export(tr, output_dir)
 
     # 步骤9：清理

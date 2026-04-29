@@ -3,8 +3,6 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 3
-_CDR_ARTISTIC_TEXT = 2
 _CDR_PARAGRAPH_TEXT = 4
 _ALIGNMENT_MAP = {"left": 0, "center": 3, "right": 1, "none": 0}
 
@@ -164,16 +162,24 @@ def check_text_overflow(shape_id: str) -> ToolResult:
                     overflowing = shape.Text.IsOverflowing
                 except Exception:
                     pass
-        content = ""
+        content_length = 0
         try:
-            content = shape.Text.Story
+            raw = shape.Text.Story
+            # X6 returns a TextRange COM object; newer versions return a str
+            if isinstance(raw, str):
+                content_length = len(raw)
+            else:
+                try:
+                    content_length = len(raw.Text)
+                except Exception:
+                    pass
         except Exception:
             pass
         return {
             "shape_id": shape_id,
             "overflowing": overflowing,
             "text_type": "paragraph" if text_type == _CDR_PARAGRAPH_TEXT else "artistic",
-            "content_length": len(content),
+            "content_length": content_length,
         }
 
     result = conn.safe_call(_check)
