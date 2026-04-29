@@ -79,7 +79,8 @@ def get_layers() -> ToolResult:
                 except Exception:
                     layer_info["locked"] = False
                 try:
-                    layer_info["color"] = layer.Color
+                    c = layer.Color
+                    layer_info["color"] = int(c) if isinstance(c, int) else str(c)
                 except Exception:
                     layer_info["color"] = ""
                 try:

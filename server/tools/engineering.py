@@ -5,7 +5,7 @@ import os
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 6
+_CDR_TEXT_SHAPE = 3
 
 
 def populate_title_block(

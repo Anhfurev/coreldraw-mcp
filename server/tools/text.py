@@ -3,7 +3,7 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 6
+_CDR_TEXT_SHAPE = 3
 _CDR_PARAGRAPH_TEXT = 1
 _CDR_MILLIMETER = 3
 _ALIGNMENT_MAP = {"left": 0, "center": 3, "right": 1, "none": 0}
