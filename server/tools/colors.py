@@ -3,7 +3,7 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 3
+_CDR_TEXT_SHAPE = 6
 _FILL_MAP = {"cmyk": 0, "rgb": 1, "pantone": 2}
 
 

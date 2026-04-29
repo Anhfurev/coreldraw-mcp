@@ -3,13 +3,14 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_UNIT_MAP = {"mm": 2, "cm": 3, "inch": 1, "pt": 4, "px": 5}
+_CDR_MILLIMETER = 3
+_UNIT_MAP = {"mm": _CDR_MILLIMETER, "cm": 4, "inch": 1, "pt": 14, "px": 5}
 
 
 def _get_page_size(doc):
     """读取当前页面尺寸（mm）"""
     try:
-        doc.Unit = 2  # cdrMillimeter
+        doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
         return page.SizeWidth, page.SizeHeight
     except Exception:
@@ -27,7 +28,7 @@ def open_template(path: str) -> ToolResult:
         if not os.path.isfile(path):
             raise FileNotFoundError(f"模板文件不存在: {path}")
         doc = conn.app.OpenDocument(path)
-        doc.Unit = 2  # cdrMillimeter
+        doc.Unit = _CDR_MILLIMETER
         width, height = _get_page_size(doc)
         return {"path": path, "pages": doc.Pages.Count, "width": width, "height": height}
 
@@ -45,7 +46,7 @@ def create_document(width: float, height: float, unit: str = "mm") -> ToolResult
 
     def _create():
         doc = conn.app.CreateDocument()
-        cdr_unit = _UNIT_MAP.get(unit.lower(), 2)
+        cdr_unit = _UNIT_MAP.get(unit.lower(), _CDR_MILLIMETER)
         doc.Unit = cdr_unit
         page = doc.ActivePage
         page.SetSize(width, height)
@@ -138,7 +139,7 @@ def set_page_size(width: float, height: float) -> ToolResult:
         doc = conn.app.ActiveDocument
         if not doc:
             raise RuntimeError("没有打开的文档")
-        doc.Unit = 2  # cdrMillimeter
+        doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
         page.SetSize(width, height)
         return {"width": width, "height": height, "unit": "mm"}
@@ -159,7 +160,7 @@ def get_document_info() -> ToolResult:
         doc = conn.app.ActiveDocument
         if not doc:
             raise RuntimeError("没有打开的文档")
-        doc.Unit = 2
+        doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
         width, height = _get_page_size(doc)
 

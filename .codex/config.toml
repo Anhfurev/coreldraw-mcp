@@ -1,6 +1,20 @@
-# .codex/config.toml
-# harness-kit Codex 配置
-# 注意：hooks 功能目前处于开发中，需要手动启用
-
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
 [features]
-hooks = true   # 启用 lifecycle hooks（必须，否则 hooks.json 不生效）
+hooks = true
+
+[windows]
+sandbox = "unelevated"
+
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+CLAUDE_CODE_HOOKS = "1"
+COMSPEC = "C:\\Windows\\System32\\cmd.exe"
+PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.PY;.PYW"
+SystemRoot = "C:\\Windows"
+windir = "C:\\Windows"
+
+[sandbox_workspace_write]
+network_access = true

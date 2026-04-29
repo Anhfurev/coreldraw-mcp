@@ -201,6 +201,22 @@ def test_step7_export(tr: TestResult, output_dir: str):
         else:
             tr.step(f"文件验证: {label}", ToolResult.fail("文件不存在"))
 
+    # 文件存在不代表有可见内容。至少校验 PNG 里有非白像素，避免“空白导出”误判为通过。
+    try:
+        from PIL import Image
+
+        for fpath, label in [(preview_path, "预览PNG"), (png_path, "高清PNG")]:
+            if not os.path.isfile(fpath):
+                continue
+            with Image.open(fpath).convert("RGB") as image:
+                nonwhite = sum(1 for pixel in image.getdata() if pixel != (255, 255, 255))
+            if nonwhite > 100:
+                tr.step(f"视觉验证: {label} 非白像素 {nonwhite:,}", ToolResult.ok("OK"))
+            else:
+                tr.step(f"视觉验证: {label}", ToolResult.fail("导出图像疑似空白"))
+    except Exception as e:
+        tr.step("视觉验证: PNG", ToolResult.fail(str(e)))
+
 
 def test_step8_layers(tr: TestResult):
     """步骤8：图层管理"""
