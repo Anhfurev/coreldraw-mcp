@@ -15,6 +15,8 @@
 
 <!-- 新条目追加到这里（上方） -->
 
+[2026-04-28 19:21] DONE Session Q&A — 提供 CorelDRAW X6 MCP 连通性测试指南，用户待跑 test_e2e.py 验证 → sessions/2026-04-28-1921.md
+
 [2026-04-27] DECISION 公司派单升级为多智能体模式：Supervisor + Local Agent SubGraph，SSE 长连接通信，JWT 认证，预留设计已固化 → decisions/sprint-2-plan.md
 
 [2026-04-27] DECISION 架构调整：Agent 移至本地运行，新增 feat-011 LiteLLM Proxy，feat-006/007/008/009 标记为公司派单预留暂不实现 → decisions/sprint-2-plan.md
