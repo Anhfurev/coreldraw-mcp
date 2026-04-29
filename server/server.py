@@ -40,6 +40,7 @@ def register_tools():
     mcp.add_tool(document.add_page)
     mcp.add_tool(document.set_page_size)
     mcp.add_tool(document.get_document_info)
+    mcp.add_tool(document.list_all_text_shapes)
 
     mcp.add_tool(shapes.create_rectangle)
     mcp.add_tool(shapes.create_ellipse)

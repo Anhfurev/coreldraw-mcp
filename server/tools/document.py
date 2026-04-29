@@ -203,3 +203,82 @@ def get_document_info() -> ToolResult:
     if result["success"]:
         return ToolResult.ok("文档信息获取成功", **result["result"])
     return ToolResult.fail(result.get("error", "获取文档信息失败"))
+
+
+def list_all_text_shapes(page_index: int = 0, content_preview_len: int = 40) -> ToolResult:
+    """列出当前文档指定页面的所有文字形状。
+    返回每个形状的 name、shape_id、text_type（artistic/paragraph/unknown）、
+    writable（是否可通过 set_text_content 写入）、content_preview。
+    page_index=0 表示当前页，其他值为页码（从 1 起）。
+    用于在批量合并前确认标题栏/占位符形状的真实 ID 和可写状态。
+    """
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _list():
+        doc = conn.app.ActiveDocument
+        if not doc:
+            raise RuntimeError("没有打开的文档")
+        if page_index == 0:
+            page = doc.ActivePage
+        else:
+            page = doc.Pages[page_index - 1]
+
+        items = []
+        for s in page.Shapes:
+            # 判断是否文字形状：Type==3 快速路径，失败则 duck-typing
+            is_text = False
+            try:
+                is_text = s.Type == 3
+            except Exception:
+                pass
+            if not is_text:
+                try:
+                    _ = s.Text.Story
+                    is_text = True
+                except Exception:
+                    pass
+            if not is_text:
+                continue
+
+            item = {"name": "", "shape_id": "", "text_type": "unknown",
+                    "writable": False, "content_preview": ""}
+            try:
+                item["name"] = s.Name or ""
+            except Exception:
+                pass
+            try:
+                item["shape_id"] = str(s.StaticID)
+            except Exception:
+                pass
+
+            # 区分美术字 / 段落文字 / 已转曲
+            try:
+                t = s.Text
+                story = t.Story
+                item["writable"] = True
+                item["content_preview"] = (story[:content_preview_len] + "…"
+                                           if len(story) > content_preview_len else story)
+                try:
+                    item["text_type"] = "paragraph" if t.Type == 1 else "artistic"
+                except Exception:
+                    item["text_type"] = "artistic"
+            except Exception:
+                item["text_type"] = "curve"  # 已转曲，不可写
+                item["writable"] = False
+
+            items.append(item)
+
+        writable = sum(1 for x in items if x["writable"])
+        return {"page": page.Index, "total": len(items),
+                "writable": writable, "shapes": items}
+
+    result = conn.safe_call(_list)
+    if result["success"]:
+        r = result["result"]
+        return ToolResult.ok(
+            f"第{r['page']}页共 {r['total']} 个文字形状，{r['writable']} 个可写入",
+            **r,
+        )
+    return ToolResult.fail(result.get("error", "列举文字形状失败"))
