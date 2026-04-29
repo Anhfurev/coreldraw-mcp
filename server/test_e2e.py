@@ -116,27 +116,35 @@ def test_step4_replace_text(tr: TestResult):
     """步骤4：替换文字内容"""
     print("\n[步骤4] 替换文字内容…")
     conn = get_connection()
-    doc = conn.app.ActiveDocument
-    shapes = doc.ActivePage.Shapes
 
-    # 找到第一个文字形状（room）并重命名
-    text_shapes = []
-    for s in shapes:
-        try:
-            _ = s.Text  # duck-type: X6 text shapes expose .Text regardless of .Type constant
-            text_shapes.append(s)
-        except Exception:
-            continue
+    def _rename_shapes():
+        doc = conn.app.ActiveDocument
+        text_shapes = []
+        for s in doc.ActivePage.Shapes:
+            try:
+                _ = s.Text  # duck-type: text shapes expose .Text
+                text_shapes.append(s)
+            except Exception:
+                continue
+        renamed = []
+        if len(text_shapes) >= 1:
+            text_shapes[0].Name = "placeholder_room"
+            renamed.append("placeholder_room")
+        if len(text_shapes) >= 2:
+            text_shapes[1].Name = "placeholder_dept"
+            renamed.append("placeholder_dept")
+        return renamed
 
-    if len(text_shapes) >= 1:
-        text_shapes[0].Name = "placeholder_room"
-        tr.step("重命名形状 → placeholder_room", ToolResult.ok("OK"))
-    else:
+    result = conn.safe_call(_rename_shapes)
+    if not result["success"]:
+        tr.step("重命名形状", ToolResult.fail(result.get("error", "失败")))
+        return
+    renamed = result["result"]
+    if "placeholder_room" not in renamed:
         tr.skip("重命名形状", "文字形状不足")
         return
-
-    if len(text_shapes) >= 2:
-        text_shapes[1].Name = "placeholder_dept"
+    tr.step("重命名形状 → placeholder_room", ToolResult.ok("OK"))
+    if "placeholder_dept" in renamed:
         tr.step("重命名形状 → placeholder_dept", ToolResult.ok("OK"))
 
     # 替换内容
