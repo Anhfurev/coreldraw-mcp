@@ -207,10 +207,11 @@ def get_document_info() -> ToolResult:
 
 def list_all_text_shapes(page_index: int = 0, content_preview_len: int = 40) -> ToolResult:
     """列出当前文档指定页面的所有文字形状。
-    返回每个形状的 name、shape_id、text_type（artistic/paragraph/unknown）、
-    writable（是否可通过 set_text_content 写入）、content_preview。
+    返回每个形状的 name、shape_id、text_type（artistic/paragraph/curve）、
+    writable（是否可通过 set_text_content 写入）、content_preview，
+    以及位置和尺寸（x、y、width、height，单位 mm）。
     page_index=0 表示当前页，其他值为页码（从 1 起）。
-    用于在批量合并前确认标题栏/占位符形状的真实 ID 和可写状态。
+    用于在批量合并前确认标题栏/占位符形状的真实 ID、位置和可写状态。
     """
     conn = get_connection()
     if not conn.status.connected:
@@ -243,13 +244,21 @@ def list_all_text_shapes(page_index: int = 0, content_preview_len: int = 40) -> 
                 continue
 
             item = {"name": "", "shape_id": "", "text_type": "unknown",
-                    "writable": False, "content_preview": ""}
+                    "writable": False, "content_preview": "",
+                    "x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0}
             try:
                 item["name"] = s.Name or ""
             except Exception:
                 pass
             try:
                 item["shape_id"] = str(s.StaticID)
+            except Exception:
+                pass
+            try:
+                item["x"] = round(s.PositionX, 2)
+                item["y"] = round(s.PositionY, 2)
+                item["width"] = round(s.SizeWidth, 2)
+                item["height"] = round(s.SizeHeight, 2)
             except Exception:
                 pass
 
