@@ -56,6 +56,14 @@ def export_pdf(
             doc.PDFSettings.MultiPage = multi_page
         except Exception:
             pass
+        # 尝试加载 ICC Profile（CorelDRAW 版本间 API 名称不同，逐一尝试）
+        if color_profile:
+            for attr in ("ColorProfileName", "ColorProfile", "OutputColorProfile", "ICCProfileName"):
+                try:
+                    setattr(doc.PDFSettings, attr, color_profile)
+                    break
+                except Exception:
+                    continue
         doc.PublishToPDF(path)
         return {"path": path, "color_profile": color_profile, "bleed": bleed, "crop_marks": crop_marks}
 

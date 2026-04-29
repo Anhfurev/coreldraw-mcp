@@ -6,8 +6,15 @@
 ## 本阶段活跃功能
 
 - **feat-005**: MCP Server HTTP 模式 ✅ 已完成
-- **feat-011**: LiteLLM Proxy 部署 — 公司服务器部署 LLM API 代理，统一管理 API Key、用量监控、多模型路由
-- **feat-010**: Agent 编排层迁移至 LangGraph — 替换 runner.py 自定义循环，接入 RAG 与记忆持久化
+- **feat-012**: 批量合并工具 P0 修复 — 注册缺失工具 + 修复文档未关闭崩溃
+- **feat-015**: 代码质量 P2 修复 — 模型名/ICC Profile/字体检测
+- **feat-013**: 模板管理增强 — list_templates 工具 + S05303 配置 + 尺寸变体规则
+- **feat-014**: 工程图标题栏工具 — populate_title_block + CDR 模板框架
+
+## 延后功能（基础设施，业务修复完成后再做）
+
+- **feat-011**: LiteLLM Proxy 部署（延后）
+- **feat-010**: Agent 编排层迁移至 LangGraph（延后，依赖 feat-011）
 
 ## 本阶段预留功能（设计已规划，暂不实现）
 
@@ -20,7 +27,7 @@
 
 ## 完成标准
 
-本阶段完成 = feat-011 和 feat-010 的 passes 均为 true
+本阶段完成 = feat-012、feat-015、feat-013、feat-014 的 passes 均为 true
 
 ---
 

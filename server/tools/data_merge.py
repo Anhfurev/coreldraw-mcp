@@ -84,6 +84,7 @@ def merge_record(template_path: str, data: dict, output_path: str) -> ToolResult
         if dirpath:
             os.makedirs(dirpath, exist_ok=True)
         doc.SaveAs(output_path)
+        doc.Close()
         return {"template": template_path, "output": output_path, "replaced": replaced}
 
     result = conn.safe_call(_merge)

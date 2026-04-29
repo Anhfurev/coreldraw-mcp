@@ -132,7 +132,7 @@ class SignageAgent:
 
     Args:
         provider: "anthropic" (默认) 或 "openai"
-        model: 模型名称。Anthropic 例 "claude-sonnet-4-5-20250929";
+        model: 模型名称。Anthropic 例 "claude-sonnet-4-6";
                OpenAI 兼容例 "deepseek-chat" / "qwen-max" / "gpt-4o"
         api_key: API Key。Anthropic 默认读 ANTHROPIC_API_KEY，
                  OpenAI 兼容默认读 OPENAI_API_KEY 或 DASHSCOPE_API_KEY
@@ -159,7 +159,7 @@ class SignageAgent:
 
     def _default_model(self) -> str:
         if self.provider == "anthropic":
-            return "claude-sonnet-4-5-20250929"
+            return "claude-sonnet-4-6"
         return "deepseek-chat"
 
     def _resolve_api_key(self) -> Optional[str]:

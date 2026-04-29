@@ -76,6 +76,30 @@
       "passes": false,
       "deferred": true,
       "deferred_reason": "公司派单模式，暂不实现，设计预留"
+    },
+    {
+      "id": "feat-012",
+      "description": "批量合并工具 P0 修复 — 注册 merge_record/batch_merge 到 MCP Server，修复 batch_merge 执行后文档不关闭导致 CorelDRAW 崩溃",
+      "depends_on": ["feat-002"],
+      "passes": true
+    },
+    {
+      "id": "feat-015",
+      "description": "代码质量 P2 修复 — 更新 runner.py 模型名为 claude-sonnet-4-6，修复 export_pdf ICC Profile 未加载，修复 check_missing_fonts 漏检问题",
+      "depends_on": ["feat-002"],
+      "passes": true
+    },
+    {
+      "id": "feat-013",
+      "description": "模板管理增强 — 实现 list_templates 工具，template_registry.json 加入 S05303 公寓门牌配置，加 size_variants 字符数→宽度规则",
+      "depends_on": ["feat-012"],
+      "passes": true
+    },
+    {
+      "id": "feat-014",
+      "description": "工程图标题栏工具 — 新增 populate_title_block 工具填充标题栏字段（项目名/订单号/料号/设计人），配套工程图 CDR 模板框架",
+      "depends_on": ["feat-013"],
+      "passes": true
     }
   ]
 }
