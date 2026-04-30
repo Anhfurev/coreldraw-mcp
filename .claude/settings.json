@@ -24,6 +24,7 @@
           {
             "type": "command",
             "command": "bash .harness/hooks/session-end-guard.sh",
+            "additionalContext": true,
             "timeout": 10
           }
         ]
