@@ -41,6 +41,9 @@ def register_tools():
     mcp.add_tool(document.set_page_size)
     mcp.add_tool(document.get_document_info)
     mcp.add_tool(document.list_all_text_shapes)
+    mcp.add_tool(document.add_guideline)
+    mcp.add_tool(document.switch_page)
+    mcp.add_tool(document.delete_page)
 
     mcp.add_tool(shapes.create_rectangle)
     mcp.add_tool(shapes.create_ellipse)
@@ -53,6 +56,15 @@ def register_tools():
     mcp.add_tool(shapes.convert_to_curves)
     mcp.add_tool(shapes.group_shapes)
     mcp.add_tool(shapes.find_shape_by_name)
+    mcp.add_tool(shapes.align_shapes)
+    mcp.add_tool(shapes.distribute_shapes)
+    mcp.add_tool(shapes.set_z_order)
+    mcp.add_tool(shapes.delete_shape)
+    mcp.add_tool(shapes.rotate_shape)
+    mcp.add_tool(shapes.ungroup_shapes)
+    mcp.add_tool(shapes.scale_shape)
+    mcp.add_tool(shapes.select_shapes)
+    mcp.add_tool(shapes.powerclip)
 
     mcp.add_tool(text.set_text_content)
     mcp.add_tool(text.set_text_style)
@@ -68,6 +80,8 @@ def register_tools():
     mcp.add_tool(colors.set_no_fill)
     mcp.add_tool(colors.set_no_outline)
     mcp.add_tool(colors.check_rgb_colors)
+    mcp.add_tool(colors.set_fountain_fill)
+    mcp.add_tool(colors.set_transparency)
 
     mcp.add_tool(layers.create_layer)
     mcp.add_tool(layers.get_layers)
@@ -80,6 +94,7 @@ def register_tools():
     mcp.add_tool(export.export_ai)
     mcp.add_tool(export.export_svg)
     mcp.add_tool(export.export_png)
+    mcp.add_tool(export.export_jpeg)
     mcp.add_tool(export.export_preview_png)
     mcp.add_tool(export.batch_export)
 

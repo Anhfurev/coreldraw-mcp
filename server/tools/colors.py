@@ -254,3 +254,68 @@ def check_rgb_colors() -> ToolResult:
             return ToolResult.ok("未发现 RGB 颜色，可安全印刷", **r)
         return ToolResult.ok(f"发现 {r['found']} 处 RGB 颜色，建议转为 CMYK", **r)
     return ToolResult.fail(result.get("error", "RGB 检查失败"))
+
+
+def set_fountain_fill(
+    shape_id: str,
+    fill_type: str,
+    c1: float, m1: float, y1: float, k1: float,
+    c2: float, m2: float, y2: float, k2: float,
+    angle: float = 45.0
+) -> ToolResult:
+    """设置形状的渐变填充。fill_type: linear/radial/conical/square，颜色为 CMYK。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _fill():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        # 设置渐变类型
+        type_map = {"linear": 0, "radial": 1, "conical": 2, "square": 3}
+        ftype = type_map.get(fill_type.lower())
+        if ftype is None:
+            raise ValueError(f"无效的渐变类型: {fill_type}，支持 linear/radial/conical/square")
+        shape.Fill.ApplyFountainFill()
+        shape.Fill.Fountain.Type = ftype
+        # 设置起始和结束颜色
+        shape.Fill.Fountain.StartColor.CMYKAssign(c1, m1, y1, k1)
+        shape.Fill.Fountain.EndColor.CMYKAssign(c2, m2, y2, k2)
+        # 设置角度（仅 linear 有效）
+        shape.Fill.Fountain.Angle = angle
+        return {
+            "shape_id": shape_id,
+            "fill_type": fill_type,
+            "from_cmyk": [c1, m1, y1, k1],
+            "to_cmyk": [c2, m2, y2, k2],
+            "angle": angle
+        }
+
+    result = conn.safe_call(_fill)
+    if result["success"]:
+        return ToolResult.ok(f"渐变填充: {fill_type}, C{c1}M{y1}Y{y1}K{k1} → C{c2}M{m2}Y{y2}K{k2}", **result["result"])
+    return ToolResult.fail(result.get("error", "设置渐变填充失败"))
+
+
+def set_transparency(shape_id: str, opacity: float) -> ToolResult:
+    """设置形状的透明度。opacity: 0-100，0 为完全透明，100 为不透明。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _transparency():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        if opacity < 0 or opacity > 100:
+            raise ValueError("opacity 必须在 0-100 之间")
+        # 应用均匀透明度
+        shape.Transparency.ApplyUniformTransparency()
+        shape.Transparency.Uniform.Transparency = 100 - opacity
+        return {"shape_id": shape_id, "opacity": opacity}
+
+    result = conn.safe_call(_transparency)
+    if result["success"]:
+        return ToolResult.ok(f"透明度: {opacity}%", **result["result"])
+    return ToolResult.fail(result.get("error", "设置透明度失败"))

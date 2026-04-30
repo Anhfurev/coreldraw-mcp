@@ -104,8 +104,9 @@ def export_pdf(
     bleed: float = 3.0,
     crop_marks: bool = True,
     multi_page: bool = False,
+    pdfx_version: str = "",
 ) -> ToolResult:
-    """导出印刷级 PDF。支持色彩配置、出血、裁切线和多页导出。"""
+    """导出印刷级 PDF。支持色彩配置、出血、裁切线和多页导出。可选 PDF/X 标准。"""
     conn = get_connection()
     if not conn.status.connected:
         return ToolResult.fail("CorelDRAW 未连接")
@@ -124,6 +125,20 @@ def export_pdf(
             doc.PDFSettings.PublishRange = _CDR_ALL_PAGES if multi_page else _PDF_CURRENT_PAGE
             doc.PDFSettings.PageRange = "" if multi_page else str(doc.ActivePage.Index)
             doc.PDFSettings.TextAsCurves = True
+            # PDF/X support
+            if pdfx_version:
+                try:
+                    doc.PDFSettings.OutputAsPDFX = True
+                except Exception:
+                    pass
+                try:
+                    doc.PDFSettings.PDFXVersion = pdfx_version
+                except Exception:
+                    try:
+                        pdfx_map = {"PDFX1a": 0, "PDFX3": 1, "PDFX4": 2}
+                        doc.PDFSettings.PDFXVersion = pdfx_map.get(pdfx_version, 0)
+                    except Exception:
+                        pass
         except Exception:
             pass
         # 尝试加载 ICC Profile（CorelDRAW 版本间 API 名称不同，逐一尝试）
@@ -141,6 +156,7 @@ def export_pdf(
             "color_profile": color_profile,
             "bleed": bleed,
             "crop_marks": crop_marks,
+            "pdfx_version": pdfx_version,
             "shapes_count": shapes_count,
             "file_size": file_size,
         }
@@ -313,6 +329,78 @@ def export_png(path: str, dpi: int = 300, width: int = 0, background_transparent
     if result["success"]:
         return ToolResult.ok(f"PNG 已导出: {path}", **result["result"])
     return ToolResult.fail(result.get("error", "导出 PNG 失败"))
+
+
+def export_jpeg(path: str, quality: int = 85, dpi: int = 300) -> ToolResult:
+    """导出 JPEG 位图。可指定压缩质量(0-100)和分辨率。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _export():
+        doc = conn.app.ActiveDocument
+        if not doc:
+            raise RuntimeError("没有打开的文档")
+        _ensure_dir(path)
+        shapes_count = _prepare_current_page_export(doc)
+        page_w_mm, page_h_mm = _page_size_mm(doc)
+        if page_w_mm > 0 and page_h_mm > 0:
+            pixel_w = max(1, int(page_w_mm / 25.4 * dpi))
+            pixel_h = max(1, int(page_h_mm / 25.4 * dpi))
+        else:
+            pixel_w = 0
+            pixel_h = 0
+
+        exported = False
+        try:
+            export_area = _page_export_area(conn.app, doc)
+            expflt = doc.ExportBitmap(
+                path,
+                _CDR_JPEG,
+                _CDR_CURRENT_PAGE,
+                _CDR_RGB_COLOR_IMAGE,
+                pixel_w,
+                pixel_h,
+                dpi,
+                dpi,
+                _CDR_NORMAL_ANTIALIASING,
+                False,
+                False,
+                True,
+                False,
+                _CDR_COMPRESSION_NONE,
+                None,
+                export_area,
+            )
+            # Set JPEG quality (0-100)
+            try:
+                expflt.JPEGQuality = quality
+            except Exception:
+                pass
+            _finish_export_filter(expflt)
+            exported = True
+        except Exception:
+            pass
+
+        if not exported:
+            doc.Export(path, _CDR_JPEG, _CDR_CURRENT_PAGE, None, None)
+
+        file_size = _verify_exported(path)
+        return {
+            "path": path,
+            "quality": quality,
+            "dpi": dpi,
+            "width_px": pixel_w,
+            "height_px": pixel_h,
+            "format": "jpeg",
+            "shapes_count": shapes_count,
+            "file_size": file_size,
+        }
+
+    result = conn.safe_call(_export)
+    if result["success"]:
+        return ToolResult.ok(f"JPEG 已导出: {path}", **result["result"])
+    return ToolResult.fail(result.get("error", "导出 JPEG 失败"))
 
 
 def export_preview_png(path: str, width: int = 800) -> ToolResult:

@@ -291,3 +291,86 @@ def list_all_text_shapes(page_index: int = 0, content_preview_len: int = 40) -> 
             **r,
         )
     return ToolResult.fail(result.get("error", "列举文字形状失败"))
+
+
+def add_guideline(position: float, orientation: str = "horizontal") -> ToolResult:
+    """在当前页面添加辅助线。position 为辅助线位置（mm），orientation 为 horizontal 或 vertical。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _add():
+        doc = conn.app.ActiveDocument
+        if not doc:
+            raise RuntimeError("没有打开的文档")
+        doc.Unit = _CDR_MILLIMETER
+        page = doc.ActivePage
+        try:
+            guides = page.Guides
+            if orientation == "horizontal":
+                guides.Add(position, 0)  # horizontal: angle=0
+            else:
+                guides.Add(position, 90)  # vertical: angle=90
+        except Exception:
+            # fallback for different CorelDRAW versions
+            try:
+                if orientation == "horizontal":
+                    page.CreateGuide(position, 0)
+                else:
+                    page.CreateGuide(position, 90)
+            except Exception:
+                raise RuntimeError(f"无法添加 {orientation} 辅助线")
+        return {"position": position, "orientation": orientation}
+
+    result = conn.safe_call(_add)
+    if result["success"]:
+        return ToolResult.ok(f"已添加 {orientation} 辅助线: {position} mm", **result["result"])
+    return ToolResult.fail(result.get("error", "添加辅助线失败"))
+
+
+def switch_page(page_index: int) -> ToolResult:
+    """切换到指定页面。page_index 为页码（从 1 起）。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _switch():
+        doc = conn.app.ActiveDocument
+        if not doc:
+            raise RuntimeError("没有打开的文档")
+        if page_index < 1 or page_index > doc.Pages.Count:
+            raise ValueError(f"页码 {page_index} 超出范围（1-{doc.Pages.Count}）")
+        page = doc.Pages[page_index - 1]
+        page.Activate()
+        doc.Unit = _CDR_MILLIMETER
+        width, height = _get_page_size(doc)
+        return {"page_index": page_index, "width": width, "height": height}
+
+    result = conn.safe_call(_switch)
+    if result["success"]:
+        return ToolResult.ok(f"已切换到第 {page_index} 页", **result["result"])
+    return ToolResult.fail(result.get("error", "切换页面失败"))
+
+
+def delete_page(page_index: int) -> ToolResult:
+    """删除指定页面。page_index 为页码（从 1 起）。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _delete():
+        doc = conn.app.ActiveDocument
+        if not doc:
+            raise RuntimeError("没有打开的文档")
+        if doc.Pages.Count <= 1:
+            raise RuntimeError("无法删除最后一页")
+        if page_index < 1 or page_index > doc.Pages.Count:
+            raise ValueError(f"页码 {page_index} 超出范围（1-{doc.Pages.Count}）")
+        page = doc.Pages[page_index - 1]
+        page.Delete()
+        return {"remaining_pages": doc.Pages.Count}
+
+    result = conn.safe_call(_delete)
+    if result["success"]:
+        return ToolResult.ok(f"已删除第 {page_index} 页，剩余 {result['result']['remaining_pages']} 页", **result["result"])
+    return ToolResult.fail(result.get("error", "删除页面失败"))
