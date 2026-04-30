@@ -3,7 +3,9 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 3
+_CDR_TEXT_SHAPE = 6
+_CDR_PARAGRAPH_TEXT = 1
+_CDR_MILLIMETER = 3
 
 
 def check_dimensions(expected_width: float, expected_height: float, tolerance: float = 0.5) -> ToolResult:
@@ -16,7 +18,7 @@ def check_dimensions(expected_width: float, expected_height: float, tolerance: f
         doc = conn.app.ActiveDocument
         if not doc:
             raise RuntimeError("没有打开的文档")
-        doc.Unit = 2  # cdrMillimeter
+        doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
         actual_w = page.SizeWidth
         actual_h = page.SizeHeight
@@ -58,7 +60,7 @@ def check_text_overflow_all() -> ToolResult:
                 if s.Type == _CDR_TEXT_SHAPE:
                     total_text += 1
                     try:
-                        if s.Text.Type == 4:  # cdrParagraphText
+                        if s.Text.Type == _CDR_PARAGRAPH_TEXT:
                             overflowing = False
                             try:
                                 overflowing = s.Text.Overflows
@@ -108,23 +110,64 @@ def check_missing_fonts() -> ToolResult:
         doc = conn.app.ActiveDocument
         if not doc:
             raise RuntimeError("没有打开的文档")
-        missing_fonts = set()
+
+        # 优先从 CorelDRAW Fonts 集合获取可用字体列表（最可靠）
+        available_fonts: set[str] = set()
+        use_font_list = False
+        try:
+            font_col = conn.app.Fonts
+            for i in range(1, font_col.Count + 1):
+                try:
+                    available_fonts.add(font_col.Item(i).Name.lower())
+                except Exception:
+                    pass
+            use_font_list = bool(available_fonts)
+        except Exception:
+            pass
+
+        missing_fonts: set[str] = set()
         page = doc.ActivePage
         try:
             for s in page.Shapes:
-                if s.Type == _CDR_TEXT_SHAPE:
-                    try:
-                        fonts = s.Text.FontProperties
-                        font_name = fonts.Name
+                if s.Type != _CDR_TEXT_SHAPE:
+                    continue
+                # 收集形状使用的字体（字符级优先，形状级 fallback）
+                shape_fonts: set[str] = set()
+                try:
+                    chars = s.Text.Characters
+                    for ci in range(1, chars.Count + 1):
                         try:
-                            test_shape = page.ActiveLayer.CreateArtisticText(0, 0, "test", Font=font_name)
-                            test_shape.Delete()
+                            shape_fonts.add(chars.Item(ci).Properties.Font)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                if not shape_fonts:
+                    try:
+                        shape_fonts.add(s.Text.FontProperties.Name)
+                    except Exception:
+                        pass
+
+                for font_name in shape_fonts:
+                    if not font_name:
+                        continue
+                    if use_font_list:
+                        # 与 Fonts 集合比对，无需创建测试形状
+                        if font_name.lower() not in available_fonts:
+                            missing_fonts.add(font_name)
+                    else:
+                        # fallback：创建测试形状后读回实际字体名，检测是否被静默替换
+                        try:
+                            test = page.ActiveLayer.CreateArtisticText(0, 0, "T", Font=font_name)
+                            actual = test.Text.FontProperties.Name
+                            test.Delete()
+                            if actual.lower() != font_name.lower():
+                                missing_fonts.add(font_name)
                         except Exception:
                             missing_fonts.add(font_name)
-                    except Exception:
-                        continue
         except Exception:
             pass
+
         missing_list = sorted(list(missing_fonts))
         return {"passed": len(missing_list) == 0, "missing_fonts": missing_list, "count": len(missing_list)}
 

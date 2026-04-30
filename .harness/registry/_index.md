@@ -15,9 +15,20 @@
 
 <!-- 新条目追加到这里（上方） -->
 
-[2026-04-28 00:38] WIP Session 开始，状态汇报完成，等待确认 feat-011 任务 → sessions/2026-04-28-0038.md
+[2026-04-29 00:01] FIX X6 兼容性多轮修复完成，测试从 13→21/28 通过，PNG/DXF 导出待最终验证 → sessions/2026-04-29-0001.md
+
 
 [2026-04-27 22:52] WIP 第二阶段架构规划完成，feat-005✅，feat-011/010 待实现，多智能体预留设计固化 → sessions/2026-04-27-session.md
+[2026-04-28 20:30] FIX CorelDRAW X6 兼容性修复 — 形状 duck-typing、disconnect 不 Quit、reconnect_on_failure=False、ExportEx 无 struct、测试步骤顺序修正 → sessions/2026-04-28-1921.md
+
+[2026-04-28 19:21] DONE Session Q&A — 提供 CorelDRAW X6 MCP 连通性测试指南，用户待跑 test_e2e.py 验证 → sessions/2026-04-28-1921.md
+
+[2026-04-28 11:30] DONE feat-012/013/014/015 全部完成 — P0批量合并修复、P2代码质量、模板管理增强、工程图标题栏工具 → sessions/2026-04-28-1130.md
+
+[2026-04-28 10:00] DECISION 新增 feat-012/013/014/015 修复批量合并/模板管理/工程图/代码质量问题，feat-011/010 延后 → decisions/sprint-2-plan.md
+
+[2026-04-28 00:38] WIP Session 开始，状态汇报完成，等待确认 feat-011 任务 → sessions/2026-04-28-0038.md
+
 
 [2026-04-27] DECISION 公司派单升级为多智能体模式：Supervisor + Local Agent SubGraph，SSE 长连接通信，JWT 认证，预留设计已固化 → decisions/sprint-2-plan.md
 

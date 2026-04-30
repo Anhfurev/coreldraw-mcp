@@ -11,7 +11,7 @@ _MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 _MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 _MCP_PORT = int(os.environ.get("MCP_PORT", "8765"))
 
-mcp = FastMCP("coreldraw-signage", host=_MCP_HOST, port=_MCP_PORT)
+mcp = FastMCP("coreldraw-signage")
 
 
 def setup_logging():
@@ -31,7 +31,7 @@ def setup_logging():
 
 
 def register_tools():
-    from tools import document, shapes, text, colors, layers, export, preflight, data_merge
+    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates, engineering
 
     mcp.add_tool(document.open_template)
     mcp.add_tool(document.create_document)
@@ -87,7 +87,16 @@ def register_tools():
     mcp.add_tool(preflight.check_missing_fonts)
     mcp.add_tool(preflight.get_color_report)
 
+    mcp.add_tool(templates.list_templates)
+    mcp.add_tool(templates.get_template_info)
+    mcp.add_tool(templates.get_size_variant)
+
+    mcp.add_tool(engineering.populate_title_block)
+    mcp.add_tool(engineering.assemble_engineering_drawing)
+
     mcp.add_tool(data_merge.read_excel_data)
+    mcp.add_tool(data_merge.merge_record)
+    mcp.add_tool(data_merge.batch_merge)
     mcp.add_tool(data_merge.generate_barcode)
     mcp.add_tool(data_merge.generate_qrcode)
 
@@ -102,14 +111,17 @@ def main():
         logger.warning("CorelDRAW 连接失败，服务器将启动但功能受限")
 
     register_tools()
-    logger.info(f"已注册 {len(mcp._tool_manager._tools)} 个工具")
+    logger.info("工具注册完成")
 
     if _MCP_TRANSPORT != "stdio":
         logger.info(f"HTTP 模式启动，监听 http://{_MCP_HOST}:{_MCP_PORT}/mcp")
         logger.info("本地 Claude/OpenCode 可通过 .mcp.json 中的 url 连接")
 
     try:
-        mcp.run(transport=_MCP_TRANSPORT)
+        if _MCP_TRANSPORT != "stdio":
+            mcp.run(transport=_MCP_TRANSPORT, host=_MCP_HOST, port=_MCP_PORT)
+        else:
+            mcp.run(transport=_MCP_TRANSPORT)
     finally:
         close_connection()
         logger.info("MCP Server 已关闭")

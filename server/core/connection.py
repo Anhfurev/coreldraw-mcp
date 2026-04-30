@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Optional
 from dataclasses import dataclass
@@ -10,9 +11,9 @@ if sys.platform == "win32":
 class ConnectionConfig:
     max_retries: int = 3
     retry_delay: float = 1.0
-    app_name: str = "CorelDRAW.Application"
+    app_name: str = os.environ.get("COREL_CORELDRAW_APP_NAME", "CorelDRAW.Application")
     visible: bool = True
-    reconnect_on_failure: bool = True
+    reconnect_on_failure: bool = False
 
 @dataclass
 class ConnectionStatus:
@@ -57,15 +58,15 @@ class CorelDrawConnection:
             return False
 
     def disconnect(self) -> None:
-        if self._app is not None:
+        # Release the COM reference without calling Quit() — the MCP server
+        # should never close CorelDRAW; the user owns the application lifecycle.
+        self._app = None
+        self._status = ConnectionStatus()
+        if sys.platform == "win32":
             try:
-                self._app.Quit()
+                pythoncom.CoUninitialize()
             except Exception:
                 pass
-            self._app = None
-            self._status = ConnectionStatus()
-            if sys.platform == "win32":
-                pythoncom.CoUninitialize()
 
     def reconnect(self) -> bool:
         self.disconnect()

@@ -97,6 +97,74 @@
         }
       }
     },
+    "S05303_公寓门牌": {
+      "file": "templates/S05303/公寓门牌.cdr",
+      "description": "S05303 公寓项目门牌，304#砂钢拉丝，Gotham Narrow Light，含盲文珠，工程图标题栏",
+      "material": "304# 砂钢",
+      "finish": "拉丝",
+      "width_mm": 50.8,
+      "height_mm": 152.4,
+      "size_variants": {
+        "rule": "按房间号字符数确定页面宽度，高度固定 152.4mm（6英寸）",
+        "variants": [
+          {"char_count": 2, "width_mm": 50.8, "width_in": 2.0, "example": "3A, 5B, 1C"},
+          {"char_count": 3, "width_mm": 76.2, "width_in": 3.0, "example": "10A, 12B, 100C"}
+        ]
+      },
+      "placeholders": {
+        "room_number": {
+          "type": "text",
+          "max_chars": 3,
+          "desc": "房间号（2字符如3A，或3字符如10A），字符数决定页面宽度",
+          "default_font": "Gotham Narrow Light",
+          "default_size": 48,
+          "alignment": "center"
+        },
+        "braille_text": {
+          "type": "text",
+          "max_chars": 3,
+          "desc": "盲文对应文字（通常与 room_number 相同），盲文珠由工厂按此内容排布",
+          "default_font": "Gotham Narrow Light",
+          "default_size": 8,
+          "alignment": "center"
+        }
+      },
+      "layers": {
+        "print_layer": "印刷/标刻内容层（文字+图案）",
+        "laser_engrave": "激光雕刻层",
+        "laser_cut": "激光切割轮廓层",
+        "braille_layer": "盲文珠打孔定位层",
+        "dimension_layer": "工程标注层（1:1尺寸线）"
+      },
+      "braille": {
+        "position": "门牌下方居中",
+        "dot_diameter_mm": 1.5,
+        "dot_spacing_mm": 2.5,
+        "note": "盲文珠由工厂人工装配，CDR 文件中仅标注打孔位置"
+      },
+      "export_profiles": {
+        "engineering_pdf": {
+          "color_profile": "ISO_Coated_v2",
+          "bleed_mm": 0,
+          "crop_marks": false
+        },
+        "laser_dxf": {
+          "version": "R2000",
+          "layers": ["laser_engrave", "laser_cut", "braille_layer"]
+        }
+      },
+      "title_block_fields": {
+        "project_name": "项目名称（如：S05303 公寓门牌）",
+        "order_no": "订单号",
+        "part_no": "产品料号",
+        "designer": "设计人",
+        "material": "材质（默认：304# 砂钢）",
+        "finish": "表面处理（默认：拉丝）",
+        "scale": "比例（默认：1:1）",
+        "sheet_no": "图纸编号",
+        "revision": "版本号"
+      }
+    },
     "导向标识_400x200_箭头": {
       "file": "templates/导向标识_400x200_箭头.cdr",
       "description": "导向标识牌，400×200mm，含方向箭头",

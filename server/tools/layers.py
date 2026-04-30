@@ -35,6 +35,12 @@ def create_layer(name: str, color: str = "") -> ToolResult:
     def _create():
         page = conn.app.ActiveDocument.ActivePage
         layer = page.CreateLayer(name)
+        # Ensure layer is visible and printable (X6 defaults can vary)
+        for attr in ("Visible", "Printable", "Editable"):
+            try:
+                setattr(layer, attr, True)
+            except Exception:
+                pass
         if color:
             try:
                 layer.Color = color

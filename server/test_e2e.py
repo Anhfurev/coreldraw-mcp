@@ -86,7 +86,10 @@ def test_step1_connection(tr: TestResult):
         tr.step("连接 CorelDRAW", ToolResult.ok(f"版本: {conn.status.version}"))
         return True
     else:
-        tr.step("连接 CorelDRAW", ToolResult.fail("连接失败，请确认 CorelDRAW 已启动"))
+        conn = get_connection()
+        app_name = getattr(conn.config, "app_name", "CorelDRAW.Application")
+        detail = conn.status.last_error or "未知错误"
+        tr.step("连接 CorelDRAW", ToolResult.fail(f"连接失败: {app_name}: {detail}"))
         return False
 
 
@@ -119,8 +122,11 @@ def test_step4_replace_text(tr: TestResult):
     # 找到第一个文字形状（room）并重命名
     text_shapes = []
     for s in shapes:
-        if s.Type == 3:  # cdrTextShape
+        try:
+            _ = s.Text  # duck-type: X6 text shapes expose .Text regardless of .Type constant
             text_shapes.append(s)
+        except Exception:
+            continue
 
     if len(text_shapes) >= 1:
         text_shapes[0].Name = "placeholder_room"
@@ -198,6 +204,22 @@ def test_step7_export(tr: TestResult, output_dir: str):
         else:
             tr.step(f"文件验证: {label}", ToolResult.fail("文件不存在"))
 
+    # 文件存在不代表有可见内容。至少校验 PNG 里有非白像素，避免“空白导出”误判为通过。
+    try:
+        from PIL import Image
+
+        for fpath, label in [(preview_path, "预览PNG"), (png_path, "高清PNG")]:
+            if not os.path.isfile(fpath):
+                continue
+            with Image.open(fpath).convert("RGB") as image:
+                nonwhite = sum(1 for pixel in image.getdata() if pixel != (255, 255, 255))
+            if nonwhite > 100:
+                tr.step(f"视觉验证: {label} 非白像素 {nonwhite:,}", ToolResult.ok("OK"))
+            else:
+                tr.step(f"视觉验证: {label}", ToolResult.fail("导出图像疑似空白"))
+    except Exception as e:
+        tr.step("视觉验证: PNG", ToolResult.fail(str(e)))
+
 
 def test_step8_layers(tr: TestResult):
     """步骤8：图层管理"""
@@ -255,8 +277,8 @@ def main():
     test_step3_create_placeholders(tr)
     test_step4_replace_text(tr)
     test_step5_text_overflow(tr)
-    test_step6_preflight(tr)
-    test_step8_layers(tr)
+    test_step8_layers(tr)     # assign to layer BEFORE convert_to_curves (step6)
+    test_step6_preflight(tr)  # convert_to_curves must come after layer assignment
     test_step7_export(tr, output_dir)
 
     # 步骤9：清理

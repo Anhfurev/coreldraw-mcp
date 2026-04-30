@@ -3,9 +3,9 @@
 from core.connection import get_connection
 from core.models import ToolResult
 
-_CDR_TEXT_SHAPE = 3
-_CDR_ARTISTIC_TEXT = 2
-_CDR_PARAGRAPH_TEXT = 4
+_CDR_TEXT_SHAPE = 6
+_CDR_PARAGRAPH_TEXT = 1
+_CDR_MILLIMETER = 3
 _ALIGNMENT_MAP = {"left": 0, "center": 3, "right": 1, "none": 0}
 
 
@@ -13,7 +13,7 @@ def _find_text_shape(shape_id: str):
     """查找文字形状，确保是文字类型"""
     conn = get_connection()
     doc = conn.app.ActiveDocument
-    if not doc:
+    if doc is None:
         return None
     try:
         shapes = doc.ActivePage.Shapes
@@ -29,11 +29,94 @@ def _find_text_shape(shape_id: str):
                     continue
             else:
                 return None
-        if shape.Type != _CDR_TEXT_SHAPE:
+        try:
+            if shape.Type == _CDR_TEXT_SHAPE:
+                return shape
+        except Exception:
+            pass
+        try:
+            _ = shape.Text
+        except Exception:
             return None
         return shape
     except Exception:
         return None
+
+
+def _get_text_content(text) -> str:
+    for getter in (
+        lambda: text.Contents,
+        lambda: text.GetContents(),
+        lambda: text.Story.Text,
+        lambda: text.Story,
+    ):
+        try:
+            value = getter()
+            if isinstance(value, str):
+                return value
+        except Exception:
+            continue
+    return ""
+
+
+def _set_text_content(text, content: str) -> None:
+    for setter in (
+        lambda: setattr(text, "Contents", content),
+        lambda: text.SetContents(2, content),
+        lambda: setattr(text, "Story", content),
+    ):
+        try:
+            setter()
+            return
+        except Exception:
+            continue
+    raise RuntimeError("当前 CorelDRAW 版本不支持已知的文字内容写入 API")
+
+
+def _set_text_font(text, font: str) -> None:
+    for setter in (
+        lambda: setattr(text.Story, "Font", font),
+        lambda: setattr(text.FontProperties, "Name", font),
+    ):
+        try:
+            setter()
+            return
+        except Exception:
+            continue
+
+
+def _set_text_size(text, size: float) -> None:
+    for setter in (
+        lambda: setattr(text.Story, "Size", size),
+        lambda: setattr(text.FontProperties, "Size", size),
+    ):
+        try:
+            setter()
+            return
+        except Exception:
+            continue
+
+
+def _set_text_bold(text, bold: bool) -> None:
+    for setter in (
+        lambda: setattr(text.Story, "Bold", bold),
+        lambda: setattr(text.FontProperties, "Bold", bold),
+    ):
+        try:
+            setter()
+            return
+        except Exception:
+            continue
+
+
+def _apply_default_text_style(shape, frame_height: float) -> None:
+    text = shape.Text
+    size = max(8.0, min(18.0, frame_height * 0.55))
+    _set_text_size(text, size)
+    try:
+        shape.Fill.UniformColor.CMYKAssign(0, 0, 0, 100)
+    except Exception:
+        pass
 
 
 def set_text_content(shape_id: str, content: str) -> ToolResult:
@@ -46,12 +129,8 @@ def set_text_content(shape_id: str, content: str) -> ToolResult:
         shape = _find_text_shape(shape_id)
         if shape is None:
             raise ValueError(f"未找到文字形状: {shape_id}")
-        old_content = ""
-        try:
-            old_content = shape.Text.Story
-        except Exception:
-            pass
-        shape.Text.Story = content
+        old_content = _get_text_content(shape.Text)
+        _set_text_content(shape.Text, content)
         text_type = "段落文字" if shape.Text.Type == _CDR_PARAGRAPH_TEXT else "美术字"
         return {"shape_id": shape_id, "old_content": old_content, "new_content": content, "text_type": text_type}
 
@@ -81,23 +160,14 @@ def set_text_style(
         changes = {}
         text = shape.Text
         if font:
-            try:
-                text.FontProperties.Name = font
-                changes["font"] = font
-            except Exception:
-                pass
+            _set_text_font(text, font)
+            changes["font"] = font
         if size > 0:
-            try:
-                text.FontProperties.Size = size
-                changes["size"] = size
-            except Exception:
-                pass
+            _set_text_size(text, size)
+            changes["size"] = size
         if bold:
-            try:
-                text.FontProperties.Bold = True
-                changes["bold"] = True
-            except Exception:
-                pass
+            _set_text_bold(text, True)
+            changes["bold"] = True
         if italic:
             try:
                 text.FontProperties.Italic = True
@@ -162,16 +232,13 @@ def check_text_overflow(shape_id: str) -> ToolResult:
                     overflowing = shape.Text.IsOverflowing
                 except Exception:
                     pass
-        content = ""
-        try:
-            content = shape.Text.Story
-        except Exception:
-            pass
+        content_length = 0
+        content_length = len(_get_text_content(shape.Text))
         return {
             "shape_id": shape_id,
             "overflowing": overflowing,
             "text_type": "paragraph" if text_type == _CDR_PARAGRAPH_TEXT else "artistic",
-            "content_length": len(content),
+            "content_length": content_length,
         }
 
     result = conn.safe_call(_check)
@@ -207,10 +274,13 @@ def create_text_frame(x: float, y: float, width: float, height: float, text: str
         return ToolResult.fail("CorelDRAW 未连接")
 
     def _create():
-        layer = conn.app.ActiveDocument.ActivePage.ActiveLayer
+        doc = conn.app.ActiveDocument
+        doc.Unit = _CDR_MILLIMETER
+        layer = doc.ActivePage.ActiveLayer
         left, top = x, y
         right, bottom = x + width, y + height
         shape = layer.CreateParagraphText(left, top, right, bottom, text)
+        _apply_default_text_style(shape, height)
         shape.Name = f"text_{shape.StaticID}"
         return {
             "shape_id": shape.StaticID,
