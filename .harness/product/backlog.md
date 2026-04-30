@@ -42,3 +42,17 @@
 > 决定不做的需求。必须写原因，不允许静默删除。
 
 <!-- 格式：- [日期] 否决原因 — 描述 -->
+- [2026-04-30] [技术债/测试审计] test_e2e.py 仅覆盖 ~18 个工具调用，约 40+ MCP 工具零测试覆盖（shapes 全部未测、data_merge/engineering/templates 全部未测、colors 未测、export 部分未测）。需要系统化测试策略。
+
+- [2026-04-30] [技术调研] CorelDRAW COM API 工具缺口分析 — 本次调研发现 11 大类未暴露的 API 能力：
+  1) 布尔运算（Weld/Trim/Intersect/Combine/BreakApart）、
+  2) AlignAndDistribute / Z-Order 排序、
+  3) 文字排版高级功能（TextRange 列/制表位/段落格式/文本框链接/Tab/Columns/FitTextToFrame）、
+  4) 效果（Blend/Contour/Extrude/DropShadow/Lens/Envelope/Perspective/InnerShadow）、
+  5) 页面操作（InsertPage/DeletePage/MovePage/PageActivate/Page.Name/MasterPage）、
+  6) 颜色管理（Palette/ColorManager/ICC Profile/ColorHarmony/ConvertToPalette）、
+  7) 文档元数据（Metadata.Author/Keywords/Title/Copyright/LastAuthor）、
+  8) 打印设置（PrintSettings/PrintJob/PrintOptions/Prepress/Separations）、
+  9) 辅助线/网格/标尺（Guide/Grid/Ruler）、
+  10) 符号库（Symbol/SymbolDefinition/SymbolLibrary/CreateSymbol/RevertToShapes）、
+  11) 位图操作（Bitmap.Resample/Crop/ConvertToBW/Trace/PowerTRACE）
