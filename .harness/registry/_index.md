@@ -11,7 +11,9 @@
 - `DONE` 完成功能 · `WIP` 进行中 · `BLOCKED` 阻塞
 - `DECISION` 架构决策 · `CONSTRAINT` 新发现约束 · `FIX` 修复问题
 
+---
 
+[2026-04-30 DISCOVER] DISCOVER CorelDRAW COM API 工具缺口调研，11 大类未暴露能力写入 backlog → sessions/2026-04-30-discover.md
 
 <!-- 新条目追加到这里（上方） -->
 
