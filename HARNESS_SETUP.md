@@ -137,13 +137,19 @@ src/ 或 lib/ 的前两层目录结构
 
 **阶段**：第一阶段
 **目标**：（Q1 的答案，一句话）
-**截止**：（如果有）
+**完成标准**：features.json 中本阶段所有条目 passes = true
+**默认 Session 阶段**：BUILD
 
 ## 本阶段功能列表
 （从 features.json 复制，方便快速查看）
 
-## 完成标准
-本阶段完成 = features.json 中所有条目 passes 为 true
+---
+
+## 阶段历史
+
+| 阶段 | 完成时间 | 主要产出 |
+|------|----------|----------|
+| （暂无） | | |
 ```
 
 ### 3.5 .harness/state/constraints.md
@@ -170,8 +176,9 @@ src/ 或 lib/ 的前两层目录结构
 
 > Agent 每次 Session 开始时读取最近 3 条。Session 结束时在最前面追加新条目。
 
-格式：`[日期] [类型] 描述 → 详情文件`
-类型：DECISION（架构决策）| CONSTRAINT（新发现约束）| DONE（功能完成）| ISSUE（发现问题）
+格式：`[日期 时间] [类型] 一句话摘要 → 详情文件`
+
+> 类型：`DONE`完成 · `WIP`进行中 · `BLOCKED`阻塞 · `FIX`计划外修复 · `DECISION`决策 · `CONSTRAINT`约束 · `DISCOVER`需求探索 · `VERIFY`验证 · `RELEASE`发布 · `RETRO`复盘
 
 ---
 

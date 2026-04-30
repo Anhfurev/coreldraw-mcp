@@ -54,11 +54,13 @@ else
 
 1. 在 .harness/registry/sessions/ 创建今天的 session 摘要文件
    文件名格式：YYYY-MM-DD-HHmm.md
+   （:fix 子模式跳过此步，直接做第 2 步）
 
 2. 在 .harness/registry/_index.md 最前面追加一行：
    [今天日期 时间] [类型] 摘要 → sessions/文件名.md
 
-3. 更新 .harness/state/features.json（把本次完成的 passes 改为 true）
+3. 仅 BUILD / VERIFY 阶段：更新 .harness/state/features.json（把本次完成的 passes 改为 true）
+   DISCOVER / DESIGN / PLAN / RELEASE / RETRO 阶段跳过此步。
 
 4. git commit .harness/ 目录
 

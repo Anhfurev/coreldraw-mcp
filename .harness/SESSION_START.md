@@ -11,7 +11,7 @@
 读 .harness/product/vision.md       → 确认产品方向，所有决策对照此文件
 读 .harness/product/backlog.md      → 扫"待评估"区，看有无积压需求
 读 .harness/registry/_index.md      → 只看最近 5 条
-读 .harness/state/current-sprint.md → 确认本阶段目标
+读 .harness/state/current-sprint.md → 确认本阶段目标和默认 Session 阶段
 读 .harness/state/features.json     → 找出所有 passes=false 的条目
 读 .harness/state/constraints.md    → 扫一遍已知约束，避免重蹈覆辙
 ```
@@ -20,101 +20,213 @@
 
 ---
 
-## 第二步：判断本次 Session 类型
+## 第二步：输出"第一屏"（用户说话前）
 
-读完状态后，先判断属于哪种场景，再决定后续流程：
-
-**场景 A — 正常功能开发**：features.json 中有 passes=false 的条目
-→ 执行第三步（汇报 + 确认 + 开发）
-
-**场景 B — Sprint 切换**：features.json 中所有条目 passes 均为 true，
-或用户明确说"第 N 阶段完成了，规划下一阶段"
-→ 跳过第三步，直接执行【Sprint 切换流程】
-
----
-
-## 第三步：场景 A — 汇报现状并确认
-
-用以下固定格式输出：
+读完状态后，立即输出简短摘要，**等待用户说明意图**，不要跳过这一步直接进入工作：
 
 ```
-## Session 开始报告
+## Session 开始
 
-**上次完成了**：[从 _index.md 最新条目提取，一句话]
+当前阶段：[current-sprint.md 的 默认Session阶段 字段值]（[简短说明，如"feat-xxx、feat-yyy 待完成"]）
+上次：[_index.md 最新一条，一句话]
 
-**当前未完成功能**：
-- feat-xxx: [描述]（超过 5 个只列前 5 个）
-
-**已知约束提醒**：[本次任务最相关的 1-2 条]
-
-**建议本次做**：[基于优先级和依赖关系，建议 1-2 个功能]
+今天要做什么？（或用 :指令 明确阶段，输入 :help 查看可用指令）
+```
 
 ---
+
+## 第三步：判断本次 Session 阶段（用户回复后执行）
+
+用户回复后，按以下优先级判断阶段，然后**明确告知用户**判断结果：
+
+### 优先级顺序
+
+**优先级 1 — 明确指令**（用户消息包含 `:xxx`）
+
+| 指令 | 进入阶段 |
+|------|----------|
+| `:discover` | DISCOVER |
+| `:design` | DESIGN |
+| `:plan` | PLAN |
+| `:build` | BUILD |
+| `:fix` | BUILD/FIX 子模式 |
+| `:verify` | VERIFY |
+| `:release` | RELEASE |
+| `:retro` | RETRO |
+| `:status` | 输出当前状态摘要，不进入任何阶段 |
+| `:help` | 输出指令列表，不进入任何阶段 |
+| `:phase X` | 将 current-sprint.md 的默认 Session 阶段更新为 X |
+
+**优先级 2 — 关键词推断**
+
+| 关键词（中英混合） | 推断阶段 |
+|---------|----------|
+| 需求、用户故事、用户说、requirement、user story | DISCOVER |
+| 架构、设计、方案、UI、交互、选型、architecture、design | DESIGN |
+| 规划、Sprint、任务拆解、优先级、plan、roadmap | PLAN |
+| 测试、验证、回归、bug 排查、test、verify | VERIFY |
+| 发布、上线、部署、release、deploy、tag | RELEASE |
+| 复盘、总结、retrospective、retro、回顾 | RETRO |
+| 顺手、临时、快速修、发现个问题、小改 | BUILD/FIX 子模式 |
+| 实现、开发、写代码、feat、fix（非小改语境） | BUILD |
+
+**优先级 3 — 回退默认**
+
+读 `current-sprint.md` 的 `默认 Session 阶段` 字段，使用其值。
+
+### 告知用户
+
+判断完成后，在开始工作前说明：
+
+```
+检测到：[阶段名]（原因：[一句话，如"你提到了'架构'"或"默认 BUILD 阶段"]）
+如果不对，用 :build / :design / :fix 等指令切换。
+```
+
+如果判断结果是 PLAN 且 features.json 中有 passes=false 条目未完成，额外提示：
+```
+注意：当前还有未完成功能（feat-xxx），确认要规划新阶段而非继续开发吗？
+```
+
+---
+
+## 第四步：执行对应阶段的 Session 开始报告
+
+### DISCOVER — 需求探索
+
+```
+## Session 开始 — DISCOVER 阶段
+
+当前需求池：[backlog.md "待评估"区条目数，如有则列出]
+上次需求讨论：[最近一条 DISCOVER 类型的 _index 条目，无则写"暂无"]
+
+今天要探索/梳理什么需求？
+```
+
+工作产出放 `docs/requirements/YYYY-MM-DD-[主题].md`，同步记录到 backlog.md。
+
+---
+
+### DESIGN — 产品/技术设计
+
+```
+## Session 开始 — DESIGN 阶段
+
+相关需求：[从 backlog 提取相关条目，无则写"暂无"]
+已有设计文档：[列出 docs/design/ 下文件名，无则写"暂无"]
+
+今天要设计/决策什么？
+```
+
+工作产出：
+- 产品设计 → `docs/design/[模块名].md`
+- 架构/技术选型 → `registry/decisions/YYYY-MM-DD.md`（ADR 格式）
+
+---
+
+### PLAN — Sprint 规划
+
+```
+## Session 开始 — PLAN 阶段
+
+当前 Sprint：[current-sprint.md 阶段名]
+backlog 待评估：[条目列表，无则写"暂无"]
+未完成功能：[features.json passes=false 列表]
+
+今天要规划哪个阶段/功能集？
+```
+
+用户确认功能列表后，立即更新 `features.json` 和 `current-sprint.md`（不能推迟到 SESSION_END）。
+
+---
+
+### BUILD — 功能开发（标准模式）
+
+```
+## Session 开始 — BUILD 阶段
+
+上次完成了：[_index.md 最新条目，一句话]
+
+当前未完成功能：
+- feat-xxx: [描述]（超过 5 个只列前 5 个）
+
+建议本次做：[无依赖且优先级最高的 1-2 个]
+
 请确认：本次 Session 做什么？
 ```
 
-
-用户回复后，明确复述目标，然后开始工作：
-
-```
-明白，本次 Session 目标：[具体目标]
-预计需要：[估算步骤数]
-开始。
-```
+每完成一个功能 → 立即 git commit → 更新 features.json passes=true。
 
 ---
 
-## Sprint 切换流程（场景 B）
-
-**Step 1**：读 vision.md 确认方向，读 backlog.md 的"待评估"区，读 PRD 或用户指定文档，草拟新阶段功能清单
-
-**Step 2**：检查 backlog 中的待评估需求，判断是否有高优先级条目需要纳入新阶段
-
-**Step 3**：列表呈现给用户确认：
+### BUILD/FIX — 快速修复子模式
 
 ```
-## 第 N+1 阶段规划草案
+## Session 开始 — 快速修复
 
-- feat-xxx: [功能名] — [一句话描述]（依赖：无 或 feat-yyy）
-- feat-xxx: ...
-
-请确认：是否按此规划？可以增删或调整。
+跳过规划。描述要修什么？
 ```
 
-**Step 4**：用户确认后，**立即**依次更新以下文件（不能推迟到 SESSION_END）：
+- 不新增 feat 条目，不改 passes
+- 改完立即 commit（`fix: 描述`）
+- SESSION_END 极简：只在 _index.md 追加一行 `FIX` 条目，不写 session 摘要文件
 
-1. `.harness/state/features.json`
-   → 在现有条目后面追加新功能，**不删除旧条目**
+---
 
-2. `.harness/state/current-sprint.md`
-   → 更新阶段名称、目标、功能列表
-   → 把上一阶段信息移入文件底部的"阶段历史"表格
-
-3. `.harness/registry/decisions/sprint-N+1-plan.md`（新建）
-   → 记录本次规划的完整功能列表、依赖关系、优先级排序
-
-4. `.harness/registry/_index.md`
-   → 在**最前面**追加一行：
-   `[日期 时间] DECISION 第N+1阶段规划完成，新增 feat-xxx～feat-yyy → decisions/sprint-N+1-plan.md`
-
-5. git commit：
-   ```bash
-   git add .harness/
-   git commit -m "chore: 第N+1阶段规划完成，新增 X 个功能"
-   ```
-
-**Step 4**：全部更新完成后告诉用户：
+### VERIFY — 验证/测试
 
 ```
-## Sprint 切换完成
+## Session 开始 — VERIFY 阶段
 
-新增功能：X 个（feat-xxx ～ feat-yyy）
-建议先做：[无依赖且优先级最高的功能]
-状态文件已更新，下次 Session 自动加载新阶段。
+已完成功能（passes=true）：[列表]
+上次验证结果：[最近一条 VERIFY 类型 _index 条目，无则写"暂无"]
+
+今天要验证哪些功能，还是排查哪个 Bug？
 ```
 
-> ⚠️ Sprint 切换的文件更新是规划任务本身的一部分，必须在本次 Session 内完成，不能留到 SESSION_END。
+发现 Bug → 记入 backlog.md（来源：[VERIFY]）或立即进入 FIX 子模式。
 
+---
+
+### RELEASE — 发布
+
+```
+## Session 开始 — RELEASE 阶段
+
+待发布功能：[passes=true 且未发布的条目]
+上次发布：[最近一条 RELEASE 类型 _index 条目，无则写"暂无"]
+
+今天发布 vX.Y.Z，还是准备发布清单？
+```
+
+工作产出放 `docs/releases/vX.Y.Z.md`，完成后打 git tag。
+
+---
+
+### RETRO — 阶段复盘
+
+```
+## Session 开始 — RETRO 阶段
+
+本 Sprint 完成：[features.json passes=true 列表]
+本 Sprint 未完成：[passes=false 列表]
+
+今天复盘哪个 Sprint？
+```
+
+工作产出放 `registry/decisions/retro-N.md`，改进行动项写入 backlog.md（来源：[RETRO]）。
+
+---
+
+## 第五步：复述目标，开始工作
+
+用户确认后输出：
+
+```
+明白，本次 Session 目标：[具体目标]
+阶段：[阶段名]
+开始。
+```
 
 ---
 
@@ -124,7 +236,7 @@
 - 发现新约束 → 立即追加到 `.harness/state/constraints.md`
 - 上下文窗口超过 70% → 主动告知用户，建议结束当前 Session
 - 不确定某个决定 → 停下来问，不要自己猜
-- 用户提出计划外的临时改动 → 完成后在 `_index.md` 最前面追加一行 `FIX` 或 `DONE` 条目，并 git commit `.harness/`
+- PLAN 阶段用户确认功能列表 → 立即更新 features.json 和 current-sprint.md，不推迟
 
 ## 编码前置原则（Karpathy 准则）
 
@@ -145,7 +257,9 @@
 ## 禁止行为
 
 - ❌ 不读状态文件就直接开始工作
+- ❌ 跳过第二步（不输出第一屏就直接问"做哪个功能"）
 - ❌ 自行宣布上次"任务已完成"（要从记录里找，不要猜）
 - ❌ 同时开始多个功能
-- ❌ Sprint 切换完成后不更新 harness 文件就结束 Session
+- ❌ PLAN 阶段确认后不更新 features.json 就结束 Session
+- ❌ 修改 SESSION_START.md / SESSION_END.md 后不同步 template/ 副本
 - ❌ 用 lint-disable / noqa / SuppressWarnings 绕过检查规则
