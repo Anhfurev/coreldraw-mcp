@@ -31,9 +31,9 @@ fi
 # 3. 如果是 git commit，检查 commit message 格式
 if echo "$CMD" | grep -qE 'git commit'; then
     MSG=$(echo "$CMD" | grep -oP '(?<=-m ["\x27])[^"'\'']+' || echo "")
-    if [ -n "$MSG" ] && ! echo "$MSG" | grep -qE '^(feat|fix|docs|refactor|test|chore|style|perf|session):'; then
+    if [ -n "$MSG" ] && ! echo "$MSG" | grep -qE '^(feat|fix|docs|refactor|test|chore|style|perf|session|discover|design|verify|release|retro):'; then
         echo "[harness] ⚠️  commit message 格式建议：<type>: <描述>"
-        echo "           type 可选：feat/fix/docs/refactor/test/chore/style/perf/session"
+        echo "           type 可选：feat/fix/docs/refactor/test/chore/style/perf/session/discover/design/verify/release/retro"
         # 这里是 warning，不拦截（exit 0 放行）
     fi
 fi

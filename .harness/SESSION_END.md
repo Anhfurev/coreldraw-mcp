@@ -63,6 +63,11 @@
 
 ## 第三步：写 Session 摘要
 
+**判断是否需要创建摘要文件：**
+
+- **有具体产出**（代码、决策、需求文档、发现的 Bug）→ 创建摘要文件
+- **纯探索性讨论**（DISCOVER/RETRO/DESIGN 阶段，没有任何具体结论或产出）→ **跳过此步**，直接做第四步（只更新 _index.md 即可，guard 会放行）
+
 创建文件：`.harness/registry/sessions/YYYY-MM-DD-HHmm.md`
 
 ```markdown
@@ -91,23 +96,41 @@
 [YYYY-MM-DD HH:mm] [类型] 摘要一句话 → sessions/YYYY-MM-DD-HHmm.md
 ```
 
-类型选一个：
-- `DONE` — 完成了一个或多个功能
-- `WIP` — 有进展但未完成
-- `BLOCKED` — 遇到阻塞
-- `DECISION` — 本次主要做了架构决策
-- `FIX` — 修复问题
+纯探索性讨论（无摘要文件）格式：
+```
+[YYYY-MM-DD HH:mm] DISCOVER 探索了 XX 方向，暂无结论
+```
+（无需 → 指向文件，guard 检查到今天有 _index 条目即可放行）
+
+按本次 Session 阶段选择类型：
+
+| 阶段 | 推荐类型 |
+|------|---------|
+| BUILD（有功能完成） | `DONE` |
+| BUILD（未完成） | `WIP` |
+| BUILD（遇到阻塞） | `BLOCKED` |
+| BUILD/FIX 子模式 | `FIX`（格式见末尾极简路径） |
+| DISCOVER | `DISCOVER` |
+| DESIGN / PLAN | `DECISION` |
+| VERIFY（通过） | `DONE` |
+| VERIFY（有问题） | `BLOCKED` |
+| RELEASE | `DONE` |
+| RETRO | `DECISION` |
 
 示例：
 ```
 [2026-04-20 15:30] DONE 完成购物车添加/删除功能，修复数量溢出 bug → sessions/2026-04-20-1530.md
+[2026-04-20 16:00] DISCOVER 梳理支付流程需求，3个用户故事写入 backlog → sessions/2026-04-20-1600.md
 ```
 
 ---
 
 ## 第五步：更新 features.json 和阶段文件
 
-### 情况 A：本次完成了若干功能
+> **非 BUILD / VERIFY 阶段跳过此步骤**（DISCOVER / DESIGN / RELEASE / RETRO 不产生可验证功能，passes 不变）。
+> PLAN 阶段例外：如果本次做了规划，执行情况 B。
+
+### 情况 A：本次完成了若干功能（BUILD / VERIFY 阶段）
 
 把 `passes` 改为 `true` **之前**，逐条自检：
 
@@ -168,6 +191,23 @@ git commit -m "feat/fix: [功能描述]"
 
 状态文件已更新，可以安全关闭。
 ```
+
+---
+
+## BUILD/FIX 子模式极简结束路径
+
+> 本次 Session 使用了 `:fix` 或被识别为快速修复时，用此极简流程替代上面的完整清单。
+
+1. **跳过**：第零步（无需 backlog 捕获，除非顺带发现了新需求）
+2. **跳过**：第一步（无架构决策）
+3. **跳过**：第二步（无新约束则跳过）
+4. **跳过**：写 session 摘要文件（不创建 sessions/*.md）
+5. **执行**：在 `_index.md` 最前面追加一行：
+   ```
+   [YYYY-MM-DD HH:mm] FIX [修复内容一句话] → commit [hash 前7位]
+   ```
+6. **跳过**：第五步 features.json（不改 passes）
+7. **执行**：git commit `.harness/`（只含 _index.md 变更）
 
 ---
 
