@@ -19,6 +19,22 @@ cat << 'HEADER'
 ╚══════════════════════════════════════════════════════╝
 HEADER
 
+# ── 检测上次 Session 是否遗漏了 SESSION_END ──────────────────
+# 判断依据：.harness/ 目录有未提交的修改（有实质工作但未提交）
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    harness_dirty=$(git status --porcelain -- "$HARNESS_DIR" 2>/dev/null)
+    if [ -n "$harness_dirty" ]; then
+        echo ""
+        echo "## ⚠️ 上次 Session 可能未完成 SESSION_END"
+        echo ""
+        echo ".harness/ 有未提交的变更："
+        echo "$harness_dirty"
+        echo ""
+        echo "**建议先补录上次的 SESSION_END（更新 _index.md 并 git commit），再开始今天的工作。**"
+        echo ""
+    fi
+fi
+
 # ── 检测 product 目录是否待初始化（从旧版本升级的项目）──
 if [ -f "$HARNESS_DIR/product/vision.md" ] && \
    grep -q 'HARNESS_NEEDS_INIT' "$HARNESS_DIR/product/vision.md" 2>/dev/null; then

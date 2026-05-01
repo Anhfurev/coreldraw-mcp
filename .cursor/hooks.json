@@ -8,10 +8,6 @@
       "command": "bash .harness/hooks/post-write.sh",
       "timeout": 15,
       "async": true
-    },
-    "stop": {
-      "command": "bash .harness/hooks/session-end-guard.sh",
-      "timeout": 10
     }
   }
 }

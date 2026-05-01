@@ -11,18 +11,6 @@
     }
   ],
 
-  "Stop": [
-    {
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash .harness/hooks/codex-session-end-guard.sh",
-          "timeout": 10
-        }
-      ]
-    }
-  ],
-
   "PreToolUse": [
     {
       "matcher": "Bash",
