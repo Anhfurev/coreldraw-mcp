@@ -77,7 +77,7 @@ def check_text_overflow_all() -> ToolResult:
                                     pass
                                 overflow_items.append({
                                     "name": s.Name,
-                                    "shape_id": s.StaticID,
+                                    "shape_id": str(s.StaticID),
                                     "content_preview": content[:50] if content else "",
                                 })
                     except Exception:

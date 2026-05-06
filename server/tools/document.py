@@ -17,6 +17,11 @@ def _get_page_size(doc):
         return 0.0, 0.0
 
 
+def _get_page(doc, page_index: int):
+    """Return a CorelDRAW page by 1-based index."""
+    return doc.Pages(page_index)
+
+
 def open_template(path: str) -> ToolResult:
     """打开 CDR 模板文件。path 为模板文件的绝对路径。"""
     conn = get_connection()
@@ -224,7 +229,7 @@ def list_all_text_shapes(page_index: int = 0, content_preview_len: int = 40) -> 
         if page_index == 0:
             page = doc.ActivePage
         else:
-            page = doc.Pages[page_index - 1]
+            page = _get_page(doc, page_index)
 
         items = []
         for s in page.Shapes:
@@ -305,22 +310,31 @@ def add_guideline(position: float, orientation: str = "horizontal") -> ToolResul
             raise RuntimeError("没有打开的文档")
         doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
+        orientation_lower = orientation.lower()
+        if orientation_lower not in ("horizontal", "vertical"):
+            raise ValueError("orientation 必须是 horizontal 或 vertical")
+
         try:
-            guides = page.Guides
-            if orientation == "horizontal":
-                guides.Add(position, 0)  # horizontal: angle=0
+            if orientation_lower == "horizontal":
+                guide = page.ActiveLayer.CreateGuide(0, position, page.SizeWidth, position)
             else:
-                guides.Add(position, 90)  # vertical: angle=90
+                guide = page.ActiveLayer.CreateGuide(position, 0, position, page.SizeHeight)
         except Exception:
-            # fallback for different CorelDRAW versions
             try:
-                if orientation == "horizontal":
-                    page.CreateGuide(position, 0)
+                guides = page.Guides
+                if orientation_lower == "horizontal":
+                    guide = guides.Add(position, 0)
                 else:
-                    page.CreateGuide(position, 90)
+                    guide = guides.Add(position, 90)
             except Exception:
                 raise RuntimeError(f"无法添加 {orientation} 辅助线")
-        return {"position": position, "orientation": orientation}
+
+        data = {"position": position, "orientation": orientation_lower}
+        try:
+            data["shape_id"] = str(guide.StaticID)
+        except Exception:
+            pass
+        return data
 
     result = conn.safe_call(_add)
     if result["success"]:
@@ -340,7 +354,7 @@ def switch_page(page_index: int) -> ToolResult:
             raise RuntimeError("没有打开的文档")
         if page_index < 1 or page_index > doc.Pages.Count:
             raise ValueError(f"页码 {page_index} 超出范围（1-{doc.Pages.Count}）")
-        page = doc.Pages[page_index - 1]
+        page = _get_page(doc, page_index)
         page.Activate()
         doc.Unit = _CDR_MILLIMETER
         width, height = _get_page_size(doc)
@@ -366,7 +380,7 @@ def delete_page(page_index: int) -> ToolResult:
             raise RuntimeError("无法删除最后一页")
         if page_index < 1 or page_index > doc.Pages.Count:
             raise ValueError(f"页码 {page_index} 超出范围（1-{doc.Pages.Count}）")
-        page = doc.Pages[page_index - 1]
+        page = _get_page(doc, page_index)
         page.Delete()
         return {"remaining_pages": doc.Pages.Count}
 

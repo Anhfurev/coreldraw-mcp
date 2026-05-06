@@ -65,3 +65,4 @@ logs/
 tmp/
 temp/
 .harness/backup/
+%SystemDrive%

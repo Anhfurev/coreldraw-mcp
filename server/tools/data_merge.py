@@ -176,7 +176,7 @@ def generate_barcode(barcode_type: str, data: str, x: float, y: float, width: fl
                     last_shape.SetSize(width, height)
                     last_shape.Name = f"barcode_{barcode_type}_{data}"
                     return {
-                        "shape_id": last_shape.StaticID,
+                        "shape_id": str(last_shape.StaticID),
                         "type": barcode_type,
                         "data": data,
                         "x": x,
@@ -231,7 +231,7 @@ def generate_qrcode(data: str, x: float, y: float, size: float) -> ToolResult:
                 last_shape.SetSize(size, size)
                 last_shape.Name = f"qrcode_{data[:20]}"
                 return {
-                    "shape_id": last_shape.StaticID,
+                    "shape_id": str(last_shape.StaticID),
                     "type": "qr",
                     "data": data,
                     "x": x,

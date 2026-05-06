@@ -4,6 +4,32 @@ from core.connection import get_connection
 from core.models import ToolResult
 
 
+def _static_id(shape) -> str:
+    """Return CorelDRAW StaticID in the string form expected by tools."""
+    return str(shape.StaticID)
+
+
+def _shape_matches(shape, shape_id: str) -> bool:
+    target = str(shape_id)
+    try:
+        if str(shape.StaticID) == target:
+            return True
+    except Exception:
+        pass
+    try:
+        return shape.Name == target
+    except Exception:
+        return False
+
+
+def _create_shape_range(shapes):
+    conn = get_connection()
+    shape_range = conn.app.CreateShapeRange()
+    for shape in shapes:
+        shape_range.Add(shape)
+    return shape_range
+
+
 def _find_shape(shape_id: str):
     """按名称或 StaticID 查找形状。返回 Shape 对象或 None。"""
     conn = get_connection()
@@ -20,11 +46,8 @@ def _find_shape(shape_id: str):
             pass
         # 遍历匹配
         for s in shapes:
-            try:
-                if s.Name == shape_id:
-                    return s
-            except Exception:
-                continue
+            if _shape_matches(s, shape_id):
+                return s
         return None
     except Exception:
         return None
@@ -60,7 +83,7 @@ def create_rectangle(x: float, y: float, width: float, height: float, corner_rad
         r = corner_radius if corner_radius > 0 else 0
         shape = layer.CreateRectangle(x, y, x + width, y + height, r, r, r, r)
         shape.Name = f"rect_{shape.StaticID}"
-        return {"shape_id": shape.StaticID, **_shape_info(shape), "corner_radius": corner_radius}
+        return {"shape_id": _static_id(shape), **_shape_info(shape), "corner_radius": corner_radius}
 
     result = conn.safe_call(_create)
     if result["success"]:
@@ -82,7 +105,7 @@ def create_ellipse(cx: float, cy: float, rx: float, ry: float) -> ToolResult:
         bottom = cy + ry
         shape = layer.CreateEllipse(left, top, right, bottom)
         shape.Name = f"ellipse_{shape.StaticID}"
-        return {"shape_id": shape.StaticID, **_shape_info(shape), "rx": rx, "ry": ry}
+        return {"shape_id": _static_id(shape), **_shape_info(shape), "rx": rx, "ry": ry}
 
     result = conn.safe_call(_create)
     if result["success"]:
@@ -100,7 +123,7 @@ def create_line(x1: float, y1: float, x2: float, y2: float) -> ToolResult:
         layer = conn.app.ActiveDocument.ActivePage.ActiveLayer
         shape = layer.CreateLineSegment(x1, y1, x2, y2)
         shape.Name = f"line_{shape.StaticID}"
-        return {"shape_id": shape.StaticID, **_shape_info(shape), "x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        return {"shape_id": _static_id(shape), **_shape_info(shape), "x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
     result = conn.safe_call(_create)
     if result["success"]:
@@ -126,7 +149,7 @@ def import_svg(path: str, x: float = 0, y: float = 0) -> ToolResult:
                 if shapes.Count > 0:
                     last_shape = shapes.Last
                     last_shape.SetPosition(x, y)
-                    return {"path": path, "shape_id": last_shape.StaticID, **_shape_info(last_shape), "x": x, "y": y}
+                    return {"path": path, "shape_id": _static_id(last_shape), **_shape_info(last_shape), "x": x, "y": y}
             except Exception:
                 pass
         return {"path": path, "status": "imported"}
@@ -157,7 +180,7 @@ def import_image(path: str, x: float = 0, y: float = 0, width: float = 0, height
                     last_shape.SetPosition(x, y)
                 if width > 0 and height > 0:
                     last_shape.SetSize(width, height)
-                return {"path": path, "shape_id": last_shape.StaticID, **_shape_info(last_shape), "x": x, "y": y}
+                return {"path": path, "shape_id": _static_id(last_shape), **_shape_info(last_shape), "x": x, "y": y}
         except Exception:
             pass
         return {"path": path, "status": "imported"}
@@ -229,9 +252,7 @@ def boolean_operation(shape_ids: str, operation: str) -> ToolResult:
             if shape is None:
                 raise ValueError(f"未找到形状: {sid}")
             selected.append(shape)
-        selection = conn.app.CreateSelection()
-        for s in selected:
-            selection.Add(s)
+        selection = _create_shape_range(selected)
         method = getattr(selection, _BOOLEAN_OPS[operation])
         method()
         return {"operation": operation, "input_ids": ids, "result": "success"}
@@ -278,11 +299,8 @@ def group_shapes(shape_ids: str) -> ToolResult:
             if shape is None:
                 raise ValueError(f"未找到形状: {sid}")
             selected.append(shape)
-        selection = conn.app.CreateSelection()
-        for s in selected:
-            selection.Add(s)
-        group = selection.Group()
-        return {"group_id": group.StaticID, "member_count": len(ids), "member_ids": ids}
+        group = _create_shape_range(selected).Group()
+        return {"group_id": _static_id(group), "member_count": len(ids), "member_ids": ids}
 
     result = conn.safe_call(_group)
     if result["success"]:
@@ -300,7 +318,7 @@ def find_shape_by_name(name: str) -> ToolResult:
         shape = _find_shape(name)
         if shape is None:
             return {"found": False, "name": name}
-        return {"found": True, **_shape_info(shape), "shape_id": shape.StaticID}
+        return {"found": True, **_shape_info(shape), "shape_id": _static_id(shape)}
 
     result = conn.safe_call(_find)
     if result["success"]:
@@ -491,7 +509,7 @@ def distribute_shapes(shape_ids: str, direction: str = "horizontal", spacing: fl
 
     result = conn.safe_call(_distribute)
     if result["success"]:
-        return ToolResult.ok(f"分布完成: {direction} ({len(result['result']['shape_count'])}个形状)", **result["result"])
+        return ToolResult.ok(f"分布完成: {direction} ({result['result']['shape_count']}个形状)", **result["result"])
     return ToolResult.fail(result.get("error", "分布失败"))
 
 
@@ -678,7 +696,7 @@ def select_shapes(by_type: str = "", by_layer: str = "", by_name_pattern: str = 
         return ToolResult.fail("CorelDRAW 未连接")
 
     _TYPE_MAP = {
-        "rectangle": 0, "ellipse": 8, "curve": 4, "text": 3,
+        "rectangle": 1, "ellipse": 2, "curve": 4, "text": 3,
         "bitmap": 6, "group": 7, "line": 1, "polygon": 5,
     }
 
@@ -763,10 +781,10 @@ def powerclip(content_shape_id: str, container_shape_id: str) -> ToolResult:
         if container is None:
             raise ValueError(f"未找到容器形状: {container_shape_id}")
 
-        # CorelDRAW VBA: contentShape.CreatePowerClip containerShape
-        # CorelDRAW COM 方法因版本而异，用多种方式尝试
         placed = False
         for method in (
+            lambda: content.AddToPowerClip(container, -2),
+            lambda: _create_shape_range([content]).AddToPowerClip(container, -2),
             lambda: content.CreatePowerClip(container),
             lambda: container.PowerClip.Place(content),
             lambda: conn.app.ActiveDocument.CreatePowerClip(content, container),

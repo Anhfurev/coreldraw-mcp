@@ -13,6 +13,7 @@ def _find_shape(shape_id: str):
     doc = conn.app.ActiveDocument
     if not doc:
         return None
+    target = str(shape_id)
     try:
         shapes = doc.ActivePage.Shapes
         try:
@@ -20,7 +21,7 @@ def _find_shape(shape_id: str):
         except Exception:
             for s in shapes:
                 try:
-                    if s.Name == shape_id:
+                    if str(s.StaticID) == target or s.Name == target:
                         return s
                 except Exception:
                     continue
@@ -272,18 +273,14 @@ def set_fountain_fill(
         shape = _find_shape(shape_id)
         if shape is None:
             raise ValueError(f"未找到形状: {shape_id}")
-        # 设置渐变类型
-        type_map = {"linear": 0, "radial": 1, "conical": 2, "square": 3}
+        # CorelDRAW fountain fill constants: linear=1, radial=2, conical=3, square=4.
+        type_map = {"linear": 1, "radial": 2, "conical": 3, "square": 4}
         ftype = type_map.get(fill_type.lower())
         if ftype is None:
             raise ValueError(f"无效的渐变类型: {fill_type}，支持 linear/radial/conical/square")
-        shape.Fill.ApplyFountainFill()
-        shape.Fill.Fountain.Type = ftype
-        # 设置起始和结束颜色
-        shape.Fill.Fountain.StartColor.CMYKAssign(c1, m1, y1, k1)
-        shape.Fill.Fountain.EndColor.CMYKAssign(c2, m2, y2, k2)
-        # 设置角度（仅 linear 有效）
-        shape.Fill.Fountain.Angle = angle
+        start_color = conn.app.CreateCMYKColor(c1, m1, y1, k1)
+        end_color = conn.app.CreateCMYKColor(c2, m2, y2, k2)
+        shape.Fill.ApplyFountainFill(start_color, end_color, ftype, angle)
         return {
             "shape_id": shape_id,
             "fill_type": fill_type,
@@ -310,9 +307,8 @@ def set_transparency(shape_id: str, opacity: float) -> ToolResult:
             raise ValueError(f"未找到形状: {shape_id}")
         if opacity < 0 or opacity > 100:
             raise ValueError("opacity 必须在 0-100 之间")
-        # 应用均匀透明度
-        shape.Transparency.ApplyUniformTransparency()
-        shape.Transparency.Uniform.Transparency = 100 - opacity
+        transparency = int(round(100 - opacity))
+        shape.Transparency.ApplyUniformTransparency(transparency)
         return {"shape_id": shape_id, "opacity": opacity}
 
     result = conn.safe_call(_transparency)

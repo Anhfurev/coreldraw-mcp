@@ -15,6 +15,7 @@ def _find_text_shape(shape_id: str):
     doc = conn.app.ActiveDocument
     if doc is None:
         return None
+    target = str(shape_id)
     try:
         shapes = doc.ActivePage.Shapes
         try:
@@ -22,7 +23,7 @@ def _find_text_shape(shape_id: str):
         except Exception:
             for s in shapes:
                 try:
-                    if s.Name == shape_id:
+                    if str(s.StaticID) == target or s.Name == target:
                         shape = s
                         break
                 except Exception:
@@ -283,7 +284,7 @@ def create_text_frame(x: float, y: float, width: float, height: float, text: str
         _apply_default_text_style(shape, height)
         shape.Name = f"text_{shape.StaticID}"
         return {
-            "shape_id": shape.StaticID,
+            "shape_id": str(shape.StaticID),
             "name": shape.Name,
             "width": width,
             "height": height,

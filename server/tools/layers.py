@@ -10,6 +10,7 @@ def _find_shape(shape_id: str):
     doc = conn.app.ActiveDocument
     if not doc:
         return None
+    target = str(shape_id)
     try:
         shapes = doc.ActivePage.Shapes
         try:
@@ -17,7 +18,7 @@ def _find_shape(shape_id: str):
         except Exception:
             for s in shapes:
                 try:
-                    if s.Name == shape_id:
+                    if str(s.StaticID) == target or s.Name == target:
                         return s
                 except Exception:
                     continue
