@@ -4,6 +4,8 @@ from core.connection import get_connection
 from core.models import ToolResult
 
 _CDR_TEXT_SHAPE = 3
+_CDR_PARAGRAPH_TEXT = 1
+_CDR_MILLIMETER = 3
 
 
 def check_dimensions(expected_width: float, expected_height: float, tolerance: float = 0.5) -> ToolResult:
@@ -16,7 +18,7 @@ def check_dimensions(expected_width: float, expected_height: float, tolerance: f
         doc = conn.app.ActiveDocument
         if not doc:
             raise RuntimeError("没有打开的文档")
-        doc.Unit = 2  # cdrMillimeter
+        doc.Unit = _CDR_MILLIMETER
         page = doc.ActivePage
         actual_w = page.SizeWidth
         actual_h = page.SizeHeight
@@ -58,7 +60,7 @@ def check_text_overflow_all() -> ToolResult:
                 if s.Type == _CDR_TEXT_SHAPE:
                     total_text += 1
                     try:
-                        if s.Text.Type == 4:  # cdrParagraphText
+                        if s.Text.Type == _CDR_PARAGRAPH_TEXT:
                             overflowing = False
                             try:
                                 overflowing = s.Text.Overflows
@@ -75,7 +77,7 @@ def check_text_overflow_all() -> ToolResult:
                                     pass
                                 overflow_items.append({
                                     "name": s.Name,
-                                    "shape_id": s.StaticID,
+                                    "shape_id": str(s.StaticID),
                                     "content_preview": content[:50] if content else "",
                                 })
                     except Exception:

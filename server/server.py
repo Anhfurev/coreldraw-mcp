@@ -11,7 +11,7 @@ _MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 _MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 _MCP_PORT = int(os.environ.get("MCP_PORT", "8765"))
 
-mcp = FastMCP("coreldraw-signage", host=_MCP_HOST, port=_MCP_PORT)
+mcp = FastMCP("coreldraw-signage")
 
 
 def setup_logging():
@@ -40,6 +40,10 @@ def register_tools():
     mcp.add_tool(document.add_page)
     mcp.add_tool(document.set_page_size)
     mcp.add_tool(document.get_document_info)
+    mcp.add_tool(document.list_all_text_shapes)
+    mcp.add_tool(document.add_guideline)
+    mcp.add_tool(document.switch_page)
+    mcp.add_tool(document.delete_page)
 
     mcp.add_tool(shapes.create_rectangle)
     mcp.add_tool(shapes.create_ellipse)
@@ -52,6 +56,15 @@ def register_tools():
     mcp.add_tool(shapes.convert_to_curves)
     mcp.add_tool(shapes.group_shapes)
     mcp.add_tool(shapes.find_shape_by_name)
+    mcp.add_tool(shapes.align_shapes)
+    mcp.add_tool(shapes.distribute_shapes)
+    mcp.add_tool(shapes.set_z_order)
+    mcp.add_tool(shapes.delete_shape)
+    mcp.add_tool(shapes.rotate_shape)
+    mcp.add_tool(shapes.ungroup_shapes)
+    mcp.add_tool(shapes.scale_shape)
+    mcp.add_tool(shapes.select_shapes)
+    mcp.add_tool(shapes.powerclip)
 
     mcp.add_tool(text.set_text_content)
     mcp.add_tool(text.set_text_style)
@@ -67,6 +80,8 @@ def register_tools():
     mcp.add_tool(colors.set_no_fill)
     mcp.add_tool(colors.set_no_outline)
     mcp.add_tool(colors.check_rgb_colors)
+    mcp.add_tool(colors.set_fountain_fill)
+    mcp.add_tool(colors.set_transparency)
 
     mcp.add_tool(layers.create_layer)
     mcp.add_tool(layers.get_layers)
@@ -79,6 +94,7 @@ def register_tools():
     mcp.add_tool(export.export_ai)
     mcp.add_tool(export.export_svg)
     mcp.add_tool(export.export_png)
+    mcp.add_tool(export.export_jpeg)
     mcp.add_tool(export.export_preview_png)
     mcp.add_tool(export.batch_export)
 
@@ -111,14 +127,17 @@ def main():
         logger.warning("CorelDRAW 连接失败，服务器将启动但功能受限")
 
     register_tools()
-    logger.info(f"已注册 {len(mcp._tool_manager._tools)} 个工具")
+    logger.info("工具注册完成")
 
     if _MCP_TRANSPORT != "stdio":
         logger.info(f"HTTP 模式启动，监听 http://{_MCP_HOST}:{_MCP_PORT}/mcp")
         logger.info("本地 Claude/OpenCode 可通过 .mcp.json 中的 url 连接")
 
     try:
-        mcp.run(transport=_MCP_TRANSPORT)
+        if _MCP_TRANSPORT != "stdio":
+            mcp.run(transport=_MCP_TRANSPORT, host=_MCP_HOST, port=_MCP_PORT)
+        else:
+            mcp.run(transport=_MCP_TRANSPORT)
     finally:
         close_connection()
         logger.info("MCP Server 已关闭")

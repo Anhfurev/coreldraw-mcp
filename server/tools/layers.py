@@ -10,6 +10,7 @@ def _find_shape(shape_id: str):
     doc = conn.app.ActiveDocument
     if not doc:
         return None
+    target = str(shape_id)
     try:
         shapes = doc.ActivePage.Shapes
         try:
@@ -17,7 +18,7 @@ def _find_shape(shape_id: str):
         except Exception:
             for s in shapes:
                 try:
-                    if s.Name == shape_id:
+                    if str(s.StaticID) == target or s.Name == target:
                         return s
                 except Exception:
                     continue
@@ -35,6 +36,12 @@ def create_layer(name: str, color: str = "") -> ToolResult:
     def _create():
         page = conn.app.ActiveDocument.ActivePage
         layer = page.CreateLayer(name)
+        # Ensure layer is visible and printable (X6 defaults can vary)
+        for attr in ("Visible", "Printable", "Editable"):
+            try:
+                setattr(layer, attr, True)
+            except Exception:
+                pass
         if color:
             try:
                 layer.Color = color
@@ -73,7 +80,8 @@ def get_layers() -> ToolResult:
                 except Exception:
                     layer_info["locked"] = False
                 try:
-                    layer_info["color"] = layer.Color
+                    c = layer.Color
+                    layer_info["color"] = int(c) if isinstance(c, int) else str(c)
                 except Exception:
                     layer_info["color"] = ""
                 try:
