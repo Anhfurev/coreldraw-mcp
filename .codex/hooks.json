@@ -35,5 +35,17 @@
         }
       ]
     }
+  ],
+
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash .harness/hooks/session-end-codex.sh",
+          "timeout": 10
+        }
+      ]
+    }
   ]
 }

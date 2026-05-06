@@ -36,8 +36,8 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # ── 检测 product 目录是否待初始化（从旧版本升级的项目）──
-if [ -f "$HARNESS_DIR/product/vision.md" ] && \
-   grep -q 'HARNESS_NEEDS_INIT' "$HARNESS_DIR/product/vision.md" 2>/dev/null; then
+if [ -f "$HARNESS_DIR/product/backlog.md" ] && \
+   grep -q 'HARNESS_NEEDS_INIT' "$HARNESS_DIR/product/backlog.md" 2>/dev/null; then
 
 cat << 'INIT_NOTICE'
 
@@ -53,18 +53,17 @@ cat << 'INIT_NOTICE'
    - `git log --oneline -20`（近期提交历史）
    - 项目根目录下的主要源文件结构
 
-2. 根据以上信息，填写以下三个文件（替换所有占位符）：
-   - .harness/product/vision.md  → 产品定位、成功标准、用户画像
-   - .harness/product/backlog.md → 已知待做事项、历史积压需求
-   - .harness/product/changes.md → 近期方向调整（若有）
+2. 根据以上信息，填写 `.harness/product/backlog.md` 中的占位符：
+   - "产品方向"区 → 产品定位、成功标准、不做什么
+   - "已知约束与坑"区 → 架构约束和已知坑
 
-3. 每个文件填写完成后，删除文件顶部的 `<!-- HARNESS_NEEDS_INIT -->` 行
+3. 删除 backlog.md 顶部的 `<!-- HARNESS_NEEDS_INIT -->` 行
 
-4. git commit：`chore: 初始化 product 需求管理目录`
+4. git commit：`chore: 初始化 product backlog`
 
 5. 完成后，继续执行正常 SESSION_START 流程
 
-**注意：如果项目信息不足以判断某个字段，写"（暂无，待补充）"，不要留模板占位符。**
+**注意：信息不足的字段写"（暂无，待补充）"，不要留模板占位符。**
 
 ---
 INIT_NOTICE
