@@ -5,9 +5,9 @@
     - openai: OpenAI 兼容接口，支持 DeepSeek/Qwen/通义千问等
 
 示例:
-    agent = CorelDrawAgent(provider="openai", model="deepseek-chat",
+    agent = SignageAgent(provider="openai", model="deepseek-chat",
                          base_url="https://api.deepseek.com", api_key="sk-xxx")
-    result = agent.run_single("替换文字并导出 PDF")
+    result = agent.run_single("生成门牌 301 研发中心")
 """
 
 import base64
@@ -124,11 +124,11 @@ def _read_image_base64(path: str) -> Optional[str]:
 
 
 # =============================================================================
-# CorelDrawAgent — 统一入口，内部按 provider 分发
+# SignageAgent — 统一入口，内部按 provider 分发
 # =============================================================================
 
-class CorelDrawAgent:
-    """CorelDRAW 自动化设计 Agent
+class SignageAgent:
+    """标识行业自动化设计 Agent
 
     Args:
         provider: "anthropic" (默认) 或 "openai"
@@ -600,7 +600,7 @@ class CorelDrawAgent:
             return {"success": False, "error": f"无法读取图片: {image_path}"}
 
         system = get_system_prompt("visual")
-        user_msg = f"请检查这张设计预览图。{context}" if context else "请检查这张设计预览图。"
+        user_msg = f"请检查这张门牌预览图。{context}" if context else "请检查这张设计预览图。"
 
         try:
             if self.provider == "anthropic":
@@ -638,7 +638,7 @@ class CorelDrawAgent:
 # 便捷入口
 # =============================================================================
 
-def run_coreldraw_task(
+def run_signage_task(
     task: str,
     mode: str = "single",
     provider: Literal["anthropic", "openai"] = "anthropic",
@@ -647,7 +647,7 @@ def run_coreldraw_task(
     base_url: Optional[str] = None,
     output_dir: str = "output",
 ) -> dict:
-    """便捷入口：执行 CorelDRAW 设计任务
+    """便捷入口：执行标识设计任务
 
     Args:
         task: 任务描述或 Excel 文件路径
@@ -660,19 +660,19 @@ def run_coreldraw_task(
 
     示例:
         # Claude
-        run_coreldraw_task("替换文字并导出 PDF")
+        run_signage_task("生成门牌 301 研发中心")
 
         # DeepSeek
-        run_coreldraw_task("替换文字并导出 PDF", provider="openai",
+        run_signage_task("生成门牌 301 研发中心", provider="openai",
                          model="deepseek-chat", api_key="sk-xxx",
                          base_url="https://api.deepseek.com")
 
         # 千问
-        run_coreldraw_task("替换文字并导出 PDF", provider="openai",
+        run_signage_task("生成门牌 301 研发中心", provider="openai",
                          model="qwen-max", api_key="sk-xxx",
                          base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
     """
-    agent = CorelDrawAgent(provider=provider, model=model or "", api_key=api_key, base_url=base_url)
+    agent = SignageAgent(provider=provider, model=model or "", api_key=api_key, base_url=base_url)
     if mode == "batch":
         return agent.run_batch(task, output_dir=output_dir)
     return agent.run_single(task)

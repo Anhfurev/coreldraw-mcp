@@ -18,6 +18,19 @@
       }
     ],
 
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/session-end-guard.sh",
+            "additionalContext": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -40,19 +53,6 @@
             "command": "bash .harness/hooks/post-write.sh",
             "async": true,
             "timeout": 15
-          }
-        ]
-      }
-    ],
-
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .harness/hooks/session-end.sh",
-            "additionalContext": true,
-            "timeout": 10
           }
         ]
       }

@@ -19,14 +19,11 @@
 
 [2026-04-30 13:45] VERIFY test_e2e.py 测试覆盖率审计：21/28 通过，7 失败（3 个 ExportEx），~40+ 工具零测试 → sessions/2026-04-30-1345.md
 
-[2026-04-29 10:00] DONE Q&A — 确认对话界面使用 Streamlit（server/app.py） → sessions/2026-04-29-1000.md
-
 [2026-04-29 00:01] FIX X6 兼容性多轮修复完成，测试从 13→21/28 通过，PNG/DXF 导出待最终验证 → sessions/2026-04-29-0001.md
 
 
 [2026-04-27 22:52] WIP 第二阶段架构规划完成，feat-005✅，feat-011/010 待实现，多智能体预留设计固化 → sessions/2026-04-27-session.md
 [2026-04-28 20:30] FIX CorelDRAW X6 兼容性修复 — 形状 duck-typing、disconnect 不 Quit、reconnect_on_failure=False、ExportEx 无 struct、测试步骤顺序修正 → sessions/2026-04-28-1921.md
-
 
 [2026-04-28 19:21] DONE Session Q&A — 提供 CorelDRAW X6 MCP 连通性测试指南，用户待跑 test_e2e.py 验证 → sessions/2026-04-28-1921.md
 

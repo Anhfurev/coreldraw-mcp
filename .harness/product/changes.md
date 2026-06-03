@@ -17,7 +17,7 @@
 ### [2026-04-27] DIRECTION 多模型支持 — runner.py 增加 OpenAI 兼容 provider
 
 - **原因**：用户需要支持 DeepSeek/Qwen 等国产模型，不能只绑 Claude
-- **影响**：CorelDrawAgent 增加 provider 参数，内部拆分为 Anthropic 和 OpenAI 两套调用循环。工具定义自动适配两套格式。视觉反馈路径需在 OpenAI 下改用 image_url 格式。
+- **影响**：SignageAgent 增加 provider 参数，内部拆分为 Anthropic 和 OpenAI 两套调用循环。工具定义自动适配两套格式。视觉反馈路径需在 OpenAI 下改用 image_url 格式。
 - **处理**：agent/runner.py 已重构完成，Anthropic 路径向后兼容
 
 ### [2026-04-27] MILESTONE Phase 1 MVP 完成

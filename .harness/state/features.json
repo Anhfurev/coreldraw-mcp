@@ -1,6 +1,6 @@
 {
   "_readme": "只允许把 passes 从 false 改成 true。禁止删除条目或修改描述。deferred=true 表示预留设计、暂不实现。",
-  "_project": "CorelDRAW MCP 自动化设计服务",
+  "_project": "标识行业 AI Agent 自动化设计系统",
   "_sprint": "第二阶段（Agent 本地化 + LLM 代理）",
   "features": [
     {
@@ -17,7 +17,7 @@
     },
     {
       "id": "feat-003",
-      "description": "单条记录端到端验证 — 完成从打开模板、替换文字、印前检查到导出 PDF/DXF 的完整单条流程",
+      "description": "单条记录门牌生成端到端验证 — 完成从打开模板、替换文字、印前检查到导出 PDF/DXF 的完整单条流程",
       "depends_on": ["feat-002"],
       "passes": true
     },

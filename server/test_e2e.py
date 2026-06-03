@@ -1,4 +1,4 @@
-"""端到端验证脚本 — 单条记录生成完整流程测试 + P0/P1 新工具覆盖
+"""端到端验证脚本 — 单条门牌生成完整流程测试 + P0/P1 新工具覆盖
 
 使用方法（Windows + CorelDRAW 环境）:
     python server/test_e2e.py

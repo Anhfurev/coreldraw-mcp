@@ -1,79 +1,223 @@
 # Session 结束协议
 
-## 第零步：捕获新需求与约束（所有阶段通用）
+> 每次 Session 结束前，Agent 必须执行本清单。
+> 耗时目标：5 分钟以内。
+> 哪怕上下文窗口快满了，也要完成这个清单再停止。
 
-- 用户提到的新想法/反馈 → 追加到 `backlog.md` 待评估区（格式：`- [日期] [来源] 描述`）
-- 发现新约束/坑 → 追加到 `backlog.md` 已知约束区（格式：`[YYYY-MM-DD] 描述 — 原因`）
-- 无则跳过。
+---
 
-## 第一步：判断本次会话阶段
+## 第零步：捕获需求到 Backlog（优先执行）
 
-回顾本次对话内容，判断属于哪个生命周期阶段：
+回顾本次 Session，如果用户提到了以下任何内容，**立即追加**到 `.harness/product/backlog.md` 的"待评估"区：
 
-| 判断依据 | 阶段 |
-|----------|------|
-| 讨论了需求、用户故事、功能想法 | **DISCOVER** |
-| 讨论了架构、方案、选型、UI 设计 | **DESIGN** |
-| 规划了 Sprint、拆解任务、排优先级 | **PLAN** |
-| 写了代码、实现了功能 | **BUILD** |
-| 测试、验证、排查了 Bug | **VERIFY** |
-| 发布了版本、打了 tag | **RELEASE** |
-| 做了复盘、总结、回顾 | **RETRO** |
-| 做了临时快速修复或小改动 | **FIX** |
+- 新功能想法（"要是能…就好了"、"以后可以加…"）
+- 改动意向（"这个做法不太对，应该…"）
+- 用户反馈（"有人说…"、"我发现用户会…"）
+- 方向疑问（"我在想要不要…"）
 
-## 第二步：按阶段执行收尾
+格式：`- [今天日期] [来源：用户/观察/反馈] 描述`
 
-### BUILD 阶段
+如果用户说了方向性调整（不只是一个功能，而是路线变化），同时追加到 `.harness/product/changes.md`。
 
-1. 完成的功能 → `features.json` passes 改为 true（只能 false→true）
-2. 创建 Session 摘要：`registry/sessions/YYYY-MM-DD-HHmm.md`（内容：完成了什么、未完成什么、下次从哪开始）
-3. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] DONE 摘要 → sessions/文件名`
-4. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+**不要等用户再说一遍，当场记录，然后继续执行后续步骤。**
 
-### FIX 子模式
+---
 
-1. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] FIX 修复内容`
-2. `git add .harness/ && git commit -m "chore: session ..."`
+## 第一步：提取本次决策
 
-### DISCOVER 阶段
+回顾本次 Session，找出被最终确认的决策：
+- 架构选择（选了哪个方案，为什么）
+- 命名约定（用了哪个风格，为什么）
+- 技术选型（引入或排除了哪个库/工具）
+- 设计决定（接口设计、数据结构、流程等）
 
-1. 若有产出文档 → 写入 `docs/requirements/YYYY-MM-DD-[主题].md`
-2. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] DISCOVER 摘要`
-3. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+如果有，创建文件：`.harness/registry/decisions/YYYY-MM-DD.md`
 
-### DESIGN 阶段
+```markdown
+# 决策记录 YYYY-MM-DD
 
-1. 若有架构决策 → 创建 `registry/decisions/YYYY-MM-DD.md`
-2. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] DECISION 摘要 → decisions/文件名`
-3. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+## [决策名称]
+- **选择**：[做了什么决定]
+- **原因**：[为什么这样决定，不是别的]
+- **影响**：[这个决定影响哪些模块/文件]
+- **不可推翻**：[是/否，原因]
+```
 
-### PLAN 阶段
+如果本次没有重大决策，跳过，不要创建空文件。
 
-1. 新功能 → 追加到 `features.json`
-2. 更新 `current-sprint.md` 元数据（阶段/目标/默认阶段）
-3. 有功能被取消/推迟 → 追加到 `backlog.md` "已规划/已否决/变更"区
-4. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] PLAN 摘要`
-5. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+---
 
-### VERIFY 阶段
+## 第二步：追加新发现的约束
 
-1. 发现 Bug → 追加到 `backlog.md` 待评估区（来源：`[VERIFY]`）
-2. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] VERIFY 摘要`
-3. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+如果本次发现了之前不知道的边界或坑，追加到 `.harness/state/constraints.md`：
 
-### RELEASE 阶段
+```markdown
+## [YYYY-MM-DD 发现]
+- [具体约束，一句话说清楚]
+  原因：[为什么存在这个约束]
+```
 
-1. 发布说明 → `docs/releases/vX.Y.Z.md`
-2. `git tag vX.Y.Z`
-3. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] RELEASE vX.Y.Z`
+如果没有新发现，跳过。
 
-### RETRO 阶段
+---
 
-1. 复盘文档 → `registry/decisions/retro-N.md`
-2. 改进行动项 → 追加到 `backlog.md` 待评估区（来源：`[RETRO]`）
-3. `_index.md` 最前面追加：`[YYYY-MM-DD HH:mm] RETRO 摘要`
-4. `git add .harness/ && git commit -m "chore: session YYYY-MM-DD HH:mm - 摘要"`
+## 第三步：写 Session 摘要
 
-## 最后：告知用户
+**判断是否需要创建摘要文件：**
 
-本次完成了什么、未完成什么、下次建议从哪里开始。
+- **有具体产出**（代码、决策、需求文档、发现的 Bug）→ 创建摘要文件
+- **纯探索性讨论**（DISCOVER/RETRO/DESIGN 阶段，没有任何具体结论或产出）→ **跳过此步**，直接做第四步（只更新 _index.md 即可，guard 会放行）
+
+创建文件：`.harness/registry/sessions/YYYY-MM-DD-HHmm.md`
+
+```markdown
+# Session 摘要 YYYY-MM-DD HH:mm
+
+## 完成了
+- [功能/任务名]：[一句话描述做了什么，对应 commit: abc1234]
+
+## 未完成
+- [功能/任务名]：[停在哪里，原因]
+
+## 遗留问题
+- [问题描述]：[下次需要先处理这个]（如果没有写"无"）
+
+## 下次建议从这里开始
+[具体说清楚：文件名、函数名、要做的第一步]
+```
+
+---
+
+## 第四步：更新 registry 索引
+
+在 `.harness/registry/_index.md` **最前面**追加（不是末尾）：
+
+```
+[YYYY-MM-DD HH:mm] [类型] 摘要一句话 → sessions/YYYY-MM-DD-HHmm.md
+```
+
+纯探索性讨论（无摘要文件）格式：
+```
+[YYYY-MM-DD HH:mm] DISCOVER 探索了 XX 方向，暂无结论
+```
+（无需 → 指向文件，guard 检查到今天有 _index 条目即可放行）
+
+按本次 Session 阶段选择类型：
+
+| 阶段 | 推荐类型 |
+|------|---------|
+| BUILD（有功能完成） | `DONE` |
+| BUILD（未完成） | `WIP` |
+| BUILD（遇到阻塞） | `BLOCKED` |
+| BUILD/FIX 子模式 | `FIX`（格式见末尾极简路径） |
+| DISCOVER | `DISCOVER` |
+| DESIGN / PLAN | `DECISION` |
+| VERIFY（通过） | `DONE` |
+| VERIFY（有问题） | `BLOCKED` |
+| RELEASE | `DONE` |
+| RETRO | `DECISION` |
+
+示例：
+```
+[2026-04-20 15:30] DONE 完成购物车添加/删除功能，修复数量溢出 bug → sessions/2026-04-20-1530.md
+[2026-04-20 16:00] DISCOVER 梳理支付流程需求，3个用户故事写入 backlog → sessions/2026-04-20-1600.md
+```
+
+---
+
+## 第五步：更新 features.json 和阶段文件
+
+> **非 BUILD / VERIFY 阶段跳过此步骤**（DISCOVER / DESIGN / RELEASE / RETRO 不产生可验证功能，passes 不变）。
+> PLAN 阶段例外：如果本次做了规划，执行情况 B。
+
+### 情况 A：本次完成了若干功能（BUILD / VERIFY 阶段）
+
+把 `passes` 改为 `true` **之前**，逐条自检：
+
+- [ ] 用户明确要求的行为已全部实现
+- [ ] features.json 中该功能的 `acceptance` 验收标准已满足（若有此字段）
+- [ ] 没有引入超出功能范围的代码或抽象
+- [ ] 改动产生的孤儿代码（未使用的 import/变量/函数）已清除
+- [ ] 如有测试，已通过；如无测试，已手动验证核心路径
+
+全部确认后再把 `passes` 改为 `true`。
+规则：只改 `passes` 字段，不修改 `description`，不删除条目。
+
+### 情况 B：本次做了阶段切换规划（用户已在本 Session 内确认新阶段）
+
+**判断条件**：用户在本次 Session 说了"同意"、"确认"、"就这样"、"开始吧"，或者
+用户最初的指令本身就是"规划下一阶段"且没有提出修改意见。
+
+满足以上任一条件，**立刻执行以下操作，不需要再次询问**：
+
+1. 更新 `.harness/state/current-sprint.md`：
+   - 把上一阶段移入"阶段历史"表格
+   - 填写新阶段名称、目标、完成标准
+
+2. 往 `.harness/state/features.json` 追加新功能条目：
+   - 格式与现有条目一致
+   - `passes` 全部为 `false`
+   - 不删除上一阶段已完成的条目（保留历史）
+
+3. 在 `.harness/registry/decisions/` 创建当天决策文件，记录阶段切换原因和新阶段范围。
+
+**不要说"等待你确认后再更新"——用户在本 Session 内的规划确认即为授权，直接更新。**
+
+---
+
+## 第六步：git commit
+
+```bash
+git add .harness/
+git commit -m "chore: session [YYYY-MM-DD HH:mm] - [一句话摘要]"
+```
+
+然后 commit 功能代码（如果还没提交）：
+```bash
+git add [相关文件]
+git commit -m "feat/fix: [功能描述]"
+```
+
+---
+
+## 最后：告诉用户
+
+```
+## Session 结束
+
+**本次完成**：[列出完成的功能]
+**未完成**：[列出未完成的，及原因]
+**下次建议**：[下次从哪里开始]
+
+状态文件已更新，可以安全关闭。
+```
+
+---
+
+## BUILD/FIX 子模式极简结束路径
+
+> 本次 Session 使用了 `:fix` 或被识别为快速修复时，用此极简流程替代上面的完整清单。
+
+1. **跳过**：第零步（无需 backlog 捕获，除非顺带发现了新需求）
+2. **跳过**：第一步（无架构决策）
+3. **跳过**：第二步（无新约束则跳过）
+4. **跳过**：写 session 摘要文件（不创建 sessions/*.md）
+5. **执行**：在 `_index.md` 最前面追加一行：
+   ```
+   [YYYY-MM-DD HH:mm] FIX [修复内容一句话] → commit [hash 前7位]
+   ```
+6. **跳过**：第五步 features.json（不改 passes）
+7. **执行**：git commit `.harness/`（只含 _index.md 变更）
+
+---
+
+## 如果上下文窗口快满了
+
+不要等到满了再说，当窗口超过 80% 时主动告知：
+
+```
+⚠️ 上下文窗口已达到 80%，建议本次 Session 在此结束。
+执行 SESSION_END 清单中...
+```
+
+然后继续执行上面的清单，哪怕要压缩也要完成。
