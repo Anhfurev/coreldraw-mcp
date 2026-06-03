@@ -15,6 +15,8 @@
 
 [2026-04-30 DISCOVER] DISCOVER CorelDRAW COM API 工具缺口调研，11 大类未暴露能力写入 backlog → sessions/2026-04-30-discover.md
 
+[2026-06-03 00:00] WIP Session 开始，处理 git 问题 → （进行中）
+
 <!-- 新条目追加到这里（上方） -->
 
 [2026-04-30 13:45] VERIFY test_e2e.py 测试覆盖率审计：21/28 通过，7 失败（3 个 ExportEx），~40+ 工具零测试 → sessions/2026-04-30-1345.md
