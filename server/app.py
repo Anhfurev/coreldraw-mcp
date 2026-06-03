@@ -1,4 +1,4 @@
-"""Streamlit Chat UI — 标识行业 AI Agent 调试对话框
+"""Streamlit Chat UI — CorelDRAW 调试对话框
 
 启动: streamlit run server/app.py
 """
@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agent.runner import SignageAgent
 
 
-st.set_page_config(page_title="标识设计 Agent", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="CorelDRAW 调试", page_icon="🏗️", layout="wide")
 
-st.title("🏗️ 标识行业 AI 设计 Agent")
+st.title("🏗️ CorelDRAW 调试")
 st.caption("用自然语言操控 CorelDRAW，自动生成门牌、导向标识等设计文件")
 
 # =============================================================================
