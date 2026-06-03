@@ -1,7 +1,11 @@
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
 from fastmcp import FastMCP
 from loguru import logger
+
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from core.connection import init_connection, close_connection, get_connection
 from core.models import ToolResult
