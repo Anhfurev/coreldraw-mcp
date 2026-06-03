@@ -1,4 +1,4 @@
-# CorelDRAW Signage Agent — Agent 工作规范
+# CorelDRAW MCP — Agent 工作规范
 
 > 非自推信息。harness 流程由 Hook 强制执行，本文不重复。
 
@@ -14,7 +14,7 @@
 |------|------|------|
 | MCP Server | `cd server && python server.py` | 工具提供方，供 Claude/OpenCode 连接 |
 | Streamlit UI | `cd server && streamlit run app.py` | 设计师调试用的 Chat 界面 |
-| Agent 脚本 | `from agent.runner import SignageAgent` | 编程方式调用 |
+| Agent 脚本 | `from agent.runner import CorelDrawAgent` | 编程方式调用 |
 
 MCP Server 默认 `stdio` 传输，设 `MCP_TRANSPORT=streamable-http` 启动 HTTP 模式（端口 8765），`.mcp.json` 已配好连接地址。
 
@@ -45,7 +45,7 @@ MCP Server 默认 `stdio` 传输，设 `MCP_TRANSPORT=streamable-http` 启动 HT
 
 ## Agent (runner.py) 关键约定
 
-- `SignageAgent(provider="anthropic"|"openai", model=..., api_key=..., base_url=...)`
+- `CorelDrawAgent(provider="anthropic"|"openai", model=..., api_key=..., base_url=...)`
 - API Key 环境变量：`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / `DEEPSEEK_API_KEY`
 - `run_single()` — 同步阻塞，返回 dict
 - `run_single_stream()` — 生成器，逐事件 yield（供 Streamlit 消费）。事件类型：`thinking`, `text`, `tool_call`, `tool_result`, `preview`, `final`, `error`

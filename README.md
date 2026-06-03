@@ -1,16 +1,16 @@
-# CorelDRAW Signage AI Agent
+# CorelDRAW MCP — AI 辅助设计服务
 
-> 让 AI Agent 像资深设计师一样操控 CorelDRAW，从 Excel 数据自动批量生成可直接送生产的标识设计文件
+> 让 AI Agent 通过自然语言操控 CorelDRAW，完成模板填充、颜色管理、印前检查、批量导出等设计自动化任务
 
 ## 项目简介
 
-本项目为标识制作工厂提供 AI 自动化设计能力，解决门牌、导向标识、铭牌等标准化标识设计文件的大量重复手工操作问题。
+本项目为 CorelDRAW 设计工作流提供 AI 自动化能力，通过 MCP（Model Context Protocol）将 30+ 个 CorelDRAW 操作封装为工具，供 AI Agent（Claude / DeepSeek / Qwen 等）调用。
 
 **核心价值**
 
-- 设计师只需准备一次 CDR 模板 + Excel 数据表，之后所有标识由 Agent 自动生成
-- 单条门牌生成时间从 5–10 分钟（手工）降至 30 秒以内，批量 500 块标识 < 30 分钟完成
-- 导出的印刷 PDF 和激光 DXF 直接在工厂设备上使用，无需二次调整
+- 设计师只需准备一次 CDR 模板 + Excel 数据表，Agent 自动完成批量填充与导出
+- 自然语言驱动：用对话描述操作意图，Agent 自动拆解为工具调用序列
+- 导出的印刷 PDF 和 DXF 可直接送生产，内置印前质检（文字溢出、缺字体、RGB 颜色检测）
 
 ---
 
@@ -139,18 +139,18 @@ MCP_TRANSPORT=stdio python server.py
 
 ## 典型使用场景
 
-**批量生成门牌**
+**批量模板填充**
 
 1. 准备 CDR 模板文件（含文字占位符），放入 `server/templates/`
-2. 准备 Excel 数据表（每行一条门牌信息）
-3. 在对话框输入：`批量生成门牌，模板用 room_template.cdr，数据用 rooms.xlsx`
-4. Agent 自动读取数据、逐条填充模板、印前检查、导出 PDF 和 DXF
+2. 准备 Excel 数据表（每行一条记录）
+3. 在对话框输入：`批量生成文件，模板用 template.cdr，数据用 data.xlsx`
+4. Agent 自动读取数据、逐条填充模板、印前检查、导出 PDF
 
-**单条快速出稿**
+**快速单次操作**
 
 ```
-生成一块 300×150mm 的门牌，房间号 301，部门名"研发中心"，
-背景色 CMYK(0,0,0,80)，导出印刷 PDF 和激光 DXF
+打开 design.cdr，把 placeholder_title 的文字改为"产品说明书"，
+字号设为 24pt，导出 PDF（含 3mm 出血和裁切线）
 ```
 
 ---
@@ -198,7 +198,7 @@ python test_e2e.py
 |------|------|------|
 | 第一阶段 MVP | ✅ 已完成 | MCP Server + 30+ 工具 + Agent 主循环 + HTTP 模式 |
 | 第二阶段 | 进行中 | LiteLLM Proxy 统一 LLM 管理、Agent 编排迁移至 LangGraph |
-| 预留设计 | 架构已规划 | 公司派单模式：任务队列、多工作站 Worker、并发锁 |
+| 预留设计 | 架构已规划 | 任务队列、多工作站 Worker、并发锁 |
 
 ---
 

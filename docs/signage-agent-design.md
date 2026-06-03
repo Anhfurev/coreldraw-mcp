@@ -1,4 +1,4 @@
-# 标识行业 AI Agent 自动化设计系统
+# CorelDRAW MCP 自动化设计系统（原始设计文档）
 ## 需求与设计文档 v0.1
 
 ---
@@ -7,7 +7,7 @@
 
 ### 1.1 背景
 
-标识行业（门牌、导向标识、楼体字、展示牌等）的设计生产环节存在大量高度重复的工作：
+CorelDRAW 设计工作流中存在大量高度重复的手工操作：
 - 同一客户的多套规格标牌（尺寸不同、房间号/部门名不同）
 - 同一设计的多种材质/工艺版本（印刷稿、激光切割稿、雕刻稿）
 - 大型项目的批量交付（一个写字楼动辄数百块标识）
@@ -80,7 +80,7 @@
 ### 2.2 关键设计决策
 
 **为什么选 CorelDRAW COM 而非 Inkscape？**
-- 标识行业事实上以 CorelDRAW 为主流工具，客户/供应商文件均为 CDR 格式
+- CorelDRAW 是平面/印刷/标识行业的主流工具，CDR 格式是主要交换格式
 - COM API 功能完整，专色/Pantone 支持成熟，印前工具链健全
 - 已有激光切割、VDP 等工业落地案例
 
@@ -220,7 +220,7 @@ class CorelDrawMCPServer:
 
 ## 四、核心工作流设计
 
-### 4.1 批量门牌生成工作流
+### 4.1 批量模板填充工作流
 
 ```
 输入: Excel文件(房间号, 部门名, 楼层) + 门牌模板.CDR
@@ -315,7 +315,7 @@ export_preview_png()
 ### Phase 1 — MVP（4周）
 - [ ] MCP Server 基础框架搭建
 - [ ] 核心工具实现（文档、文字替换、导出 PDF/DXF）
-- [ ] 单条记录门牌生成端到端验证
+- [ ] 单条记录端到端验证
 - [ ] 视觉预览反馈基础版
 
 ### Phase 2 — 批量生产（3周）
@@ -341,7 +341,7 @@ export_preview_png()
 
 1. **模板规范化是前提**：若现有模板命名混乱、图层无规范，Agent 将无法准确定位元素，需要先投入人工整理模板库。
 
-2. **中文字体问题**：标识行业常用特殊中文字体（方正、汉仪等），生产机器上的字体安装状态必须与设计机一致，否则 Agent 无法发现静默替换。
+2. **中文字体问题**：设计行业常用特殊中文字体（方正、汉仪等），生产机器上的字体安装状态必须与设计机一致，否则 Agent 无法发现静默替换。
 
 3. **视觉质量的主观性**：Agent 通过 PNG 做视觉检查能发现明显问题，但无法替代人类对「设计美感」的判断，建议关键稿件保留人工审批环节。
 
@@ -362,7 +362,7 @@ export_preview_png()
 | CorelDRAW | Graphics Suite 2021+（建议 2024） | 低版本 COM API 功能不完整 |
 | Ghostscript | 10.x | 部分条码格式生成依赖，可选 |
 
-> ⚠️ Python 必须是 64-bit 版本。标识行业常用 32-bit Python 的旧习惯会导致 COM 调用失败，是踩坑重灾区。
+> ⚠️ Python 必须是 64-bit 版本。使用旧版环境时 32-bit Python 的旧习惯会导致 COM 调用失败，是踩坑重灾区。
 
 ---
 
@@ -573,7 +573,7 @@ from tools.export import export_pdf, export_dxf, export_preview_png
 from tools.preflight import check_missing_fonts, check_rgb_colors
 from core.connection import CorelDrawConnection
 
-mcp = FastMCP("coreldraw-signage")
+mcp = FastMCP("coreldraw-mcp")
 conn = CorelDrawConnection()
 
 @mcp.tool()

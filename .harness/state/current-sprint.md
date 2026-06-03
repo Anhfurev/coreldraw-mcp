@@ -35,4 +35,4 @@
 
 | 阶段 | 目标 | 完成日期 |
 |------|------|---------|
-| 第一阶段（MVP） | 构建 AI Agent + MCP Server + CorelDRAW COM API 自动化工业标识设计系统 | 2026-04-27 |
+| 第一阶段（MVP） | 构建 AI Agent + MCP Server + CorelDRAW COM API 通用辅助设计系统 | 2026-04-27 |
