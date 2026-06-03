@@ -26,7 +26,7 @@
 
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — MCP Server 基础框架搭建 → features.json feat-001 ✅
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — 核心工具实现（文档/文字/导出等 53 个工具） → features.json feat-002 ✅
-- [2026-04-27] Sprint-1 (Phase 1 MVP) — 单条记录门牌生成端到端验证（Agent 编排层 + 测试脚本） → features.json feat-003 ✅
+- [2026-04-27] Sprint-1 (Phase 1 MVP) — 单条记录端到端验证（Agent 编排层 + 测试脚本） → features.json feat-003 ✅
 - [2026-04-27] Sprint-1 (Phase 1 MVP) — 视觉预览反馈基础版（PNG→Base64→LLM 视觉检查闭环） → features.json feat-004 ✅
 - [2026-04-27] Sprint-1 (Phase 1 扩展) — GUI Agent 对话框（Streamlit Chat UI + run_single_stream 生成器） → features.json feat-005 ✅ (commit e1595fd)
 - [2026-04-27] Sprint-2 (Phase 2 批量生产) — Excel 数据读取与批量合并 → 待开始

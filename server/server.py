@@ -11,7 +11,7 @@ _MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 _MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 _MCP_PORT = int(os.environ.get("MCP_PORT", "8765"))
 
-mcp = FastMCP("coreldraw-signage")
+mcp = FastMCP("coreldraw-mcp")
 
 
 def setup_logging():

@@ -1,4 +1,4 @@
-"""Streamlit Chat UI — 标识行业 AI Agent 调试对话框
+"""Streamlit Chat UI — CorelDRAW AI Agent 调试对话框
 
 启动: streamlit run server/app.py
 """
@@ -13,13 +13,13 @@ import streamlit as st
 # 确保 server/ 目录在 sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from agent.runner import SignageAgent
+from agent.runner import CorelDrawAgent
 
 
-st.set_page_config(page_title="标识设计 Agent", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="CorelDRAW AI Agent", page_icon="🏗️", layout="wide")
 
-st.title("🏗️ 标识行业 AI 设计 Agent")
-st.caption("用自然语言操控 CorelDRAW，自动生成门牌、导向标识等设计文件")
+st.title("CorelDRAW AI Agent")
+st.caption("用自然语言操控 CorelDRAW，自动完成设计文件的生成与处理")
 
 # =============================================================================
 # 侧边栏 — 模型配置
@@ -60,7 +60,7 @@ with st.sidebar:
     with col1:
         if st.button("🔗 连接", use_container_width=True):
             try:
-                st.session_state.agent = SignageAgent(
+                st.session_state.agent = CorelDrawAgent(
                     provider=provider,
                     model=model,
                     api_key=api_key or None,
@@ -140,7 +140,7 @@ for msg in st.session_state.messages:
 # 用户输入与 Agent 执行
 # =============================================================================
 
-if prompt := st.chat_input("请输入设计指令，如：生成门牌301，部门名研发中心…"):
+if prompt := st.chat_input("请输入设计指令，如：打开模板并替换文字，导出 PDF…"):
     if not st.session_state.connected or st.session_state.agent is None:
         st.error("请先在左侧边栏配置模型并点击「🔗 连接」")
         st.stop()
@@ -150,7 +150,7 @@ if prompt := st.chat_input("请输入设计指令，如：生成门牌301，部�
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    agent: SignageAgent = st.session_state.agent
+    agent: CorelDrawAgent = st.session_state.agent
 
     # 运行 Agent，实时渲染事件
     with st.chat_message("assistant"):
