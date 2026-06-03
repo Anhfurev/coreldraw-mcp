@@ -11,18 +11,6 @@
     }
   ],
 
-  "Stop": [
-    {
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash .harness/hooks/codex-session-end-guard.sh",
-          "timeout": 10
-        }
-      ]
-    }
-  ],
-
   "PreToolUse": [
     {
       "matcher": "Bash",
@@ -44,6 +32,18 @@
           "type": "command",
           "command": "bash .harness/hooks/post-write.sh",
           "timeout": 15
+        }
+      ]
+    }
+  ],
+
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash .harness/hooks/session-end-codex.sh",
+          "timeout": 10
         }
       ]
     }

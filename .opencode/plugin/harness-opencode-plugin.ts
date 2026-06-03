@@ -1,5 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import { existsSync, readdirSync, readFileSync } from "fs"
+import { existsSync, readFileSync } from "fs"
 import { join } from "path"
 
 // harness-kit OpenCode Plugin
@@ -10,24 +10,10 @@ import { join } from "path"
 
 export const HarnessPlugin: Plugin = async ({ client }) => {
   const HARNESS_DIR = ".harness"
-  const SESSION_DIR = join(HARNESS_DIR, "registry", "sessions")
   const INDEX_FILE  = join(HARNESS_DIR, "registry", "_index.md")
-  const today = new Date().toISOString().slice(0, 10)
 
-  const harnessExists    = () => existsSync(HARNESS_DIR)
-  const hasRealSessions  = () =>
-    existsSync(SESSION_DIR) &&
-    readdirSync(SESSION_DIR).some((f) => f.endsWith(".md"))
-
-  const sessionEndDoneToday = () => {
-    if (existsSync(SESSION_DIR)) {
-      if (readdirSync(SESSION_DIR).some((f) => f.startsWith(today))) return true
-    }
-    if (existsSync(INDEX_FILE)) {
-      if (readFileSync(INDEX_FILE, "utf-8").includes(`[${today}`)) return true
-    }
-    return false
-  }
+  const harnessExists       = () => existsSync(HARNESS_DIR)
+  let   sessionEndInjected  = false
 
   const buildStartContext = (): string => {
     const parts: string[] = []
@@ -92,14 +78,15 @@ export const HarnessPlugin: Plugin = async ({ client }) => {
 
       // ── Stop 等价：session.idle = Agent 完成本轮响应 ───────────
       if (event.type === "session.idle") {
-        if (!harnessExists())       return   // 未安装 harness
-        if (!hasRealSessions())     return   // 全新安装，放行
-        if (sessionEndDoneToday())  return   // 今天已完成，放行
+        if (!harnessExists())       return
+        if (sessionEndInjected)    return
 
         const endFile    = join(HARNESS_DIR, "SESSION_END.md")
         const endContent = existsSync(endFile)
           ? readFileSync(endFile, "utf-8")
           : "请完成最低要求：\n1. 在 .harness/registry/sessions/ 创建今天的摘要\n2. 更新 _index.md\n3. git commit .harness/"
+
+        sessionEndInjected = true
 
         await client.session.prompt({
           path: { id: event.properties.sessionID },

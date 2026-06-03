@@ -12,6 +12,9 @@ HARNESS_DIR=".harness"
 # 只在 Claude Code 环境中输出（opencode/Cursor 等工具有独立机制）
 [ "${CLAUDE_CODE_HOOKS:-}" = "1" ] || exit 0
 
+# 每次新 session 启动时清掉上次残留的 stop-flag，确保 session-end 能正常触发
+rm -f "$HARNESS_DIR/.session-end-flag"
+
 # ── 注入内容开始 ──────────────────────────────────────────────
 cat << 'HEADER'
 ╔══════════════════════════════════════════════════════╗
@@ -19,9 +22,25 @@ cat << 'HEADER'
 ╚══════════════════════════════════════════════════════╝
 HEADER
 
+# ── 检测上次 Session 是否遗漏了 SESSION_END ──────────────────
+# 判断依据：.harness/ 目录有未提交的修改（有实质工作但未提交）
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    harness_dirty=$(git status --porcelain -- "$HARNESS_DIR" 2>/dev/null)
+    if [ -n "$harness_dirty" ]; then
+        echo ""
+        echo "## ⚠️ 上次 Session 可能未完成 SESSION_END"
+        echo ""
+        echo ".harness/ 有未提交的变更："
+        echo "$harness_dirty"
+        echo ""
+        echo "**建议先补录上次的 SESSION_END（更新 _index.md 并 git commit），再开始今天的工作。**"
+        echo ""
+    fi
+fi
+
 # ── 检测 product 目录是否待初始化（从旧版本升级的项目）──
-if [ -f "$HARNESS_DIR/product/vision.md" ] && \
-   grep -q 'HARNESS_NEEDS_INIT' "$HARNESS_DIR/product/vision.md" 2>/dev/null; then
+if [ -f "$HARNESS_DIR/product/backlog.md" ] && \
+   grep -q 'HARNESS_NEEDS_INIT' "$HARNESS_DIR/product/backlog.md" 2>/dev/null; then
 
 cat << 'INIT_NOTICE'
 
@@ -37,18 +56,17 @@ cat << 'INIT_NOTICE'
    - `git log --oneline -20`（近期提交历史）
    - 项目根目录下的主要源文件结构
 
-2. 根据以上信息，填写以下三个文件（替换所有占位符）：
-   - .harness/product/vision.md  → 产品定位、成功标准、用户画像
-   - .harness/product/backlog.md → 已知待做事项、历史积压需求
-   - .harness/product/changes.md → 近期方向调整（若有）
+2. 根据以上信息，填写 `.harness/product/backlog.md` 中的占位符：
+   - "产品方向"区 → 产品定位、成功标准、不做什么
+   - "已知约束与坑"区 → 架构约束和已知坑
 
-3. 每个文件填写完成后，删除文件顶部的 `<!-- HARNESS_NEEDS_INIT -->` 行
+3. 删除 backlog.md 顶部的 `<!-- HARNESS_NEEDS_INIT -->` 行
 
-4. git commit：`chore: 初始化 product 需求管理目录`
+4. git commit：`chore: 初始化 product backlog`
 
 5. 完成后，继续执行正常 SESSION_START 流程
 
-**注意：如果项目信息不足以判断某个字段，写"（暂无，待补充）"，不要留模板占位符。**
+**注意：信息不足的字段写"（暂无，待补充）"，不要留模板占位符。**
 
 ---
 INIT_NOTICE
