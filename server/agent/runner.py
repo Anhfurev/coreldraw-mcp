@@ -400,6 +400,7 @@ class SignageAgent:
         messages: list[dict] = [{"role": "user", "content": task}]
         turn, total_calls, errors = 0, 0, []
 
+        hit_max = False
         while turn < max_turns:
             turn += 1
             yield {"type": "thinking", "turn": turn}
@@ -471,8 +472,11 @@ class SignageAgent:
                 yield {"type": "error", "error": f"意外的 stop_reason: {stop}"}
                 errors.append(f"意外的 stop_reason: {stop}")
                 break
+        else:
+            hit_max = True
 
-        yield {"type": "final", "success": False, "message": f"达到最大轮次 {max_turns}", "turns": turn, "tool_calls": total_calls, "errors": errors}
+        final_msg = f"达到最大轮次 {max_turns}" if hit_max else f"任务因错误终止（共 {turn} 轮）"
+        yield {"type": "final", "success": False, "message": final_msg, "turns": turn, "tool_calls": total_calls, "errors": errors}
 
     def _run_openai_stream(self, task: str, system: str, max_turns: int):
         """OpenAI 兼容调用循环 — 生成器版本，逐事件 yield"""
@@ -483,6 +487,7 @@ class SignageAgent:
         ]
         turn, total_calls, errors = 0, 0, []
 
+        hit_max = False
         while turn < max_turns:
             turn += 1
             yield {"type": "thinking", "turn": turn}
@@ -551,8 +556,11 @@ class SignageAgent:
                 yield {"type": "error", "error": f"意外的 finish_reason: {choice.finish_reason}"}
                 errors.append(f"意外的 finish_reason: {choice.finish_reason}")
                 break
+        else:
+            hit_max = True
 
-        yield {"type": "final", "success": False, "message": f"达到最大轮次 {max_turns}", "turns": turn, "tool_calls": total_calls, "errors": errors}
+        final_msg = f"达到最大轮次 {max_turns}" if hit_max else f"任务因错误终止（共 {turn} 轮）"
+        yield {"type": "final", "success": False, "message": final_msg, "turns": turn, "tool_calls": total_calls, "errors": errors}
 
     # ---------- 同步接口 ----------
 
