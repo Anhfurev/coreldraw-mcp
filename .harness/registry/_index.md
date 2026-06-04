@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] 版权主体改为深圳市玄熵智能科技有限责任公司，新增 NOTICE 文件，格式与 My-Hermes-Desktop 一致
+
 [2026-06-04 FIX] 补充开源发布文件：Apache 2.0 LICENSE、CONTRIBUTING.md、pyproject.toml license 元数据、.gitignore 排除 harness sessions
 
 [2026-06-04 FIX] prompts.py 补充 CorelDRAW 坐标系说明，修正 AI 绘图上下颠倒问题
