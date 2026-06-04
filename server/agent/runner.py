@@ -90,7 +90,13 @@ def _register_tools():
     if _TOOL_REGISTRY:
         return
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from core.connection import init_connection
     from tools import document, shapes, text, colors, layers, export, preflight, data_merge
+
+    if init_connection():
+        logger.info("CorelDRAW 连接成功")
+    else:
+        logger.warning("CorelDRAW 连接失败，工具调用将返回错误（请确认 CorelDRAW 已启动）")
 
     modules = [document, shapes, text, colors, layers, export, preflight, data_merge]
     _TOOL_REGISTRY = {}
