@@ -1,16 +1,16 @@
-# CorelDRAW Signage AI Agent
+# CorelDRAW MCP 自动化设计
 
-> 让 AI Agent 像资深设计师一样操控 CorelDRAW，从 Excel 数据自动批量生成可直接送生产的标识设计文件
+> 通过 MCP 协议让 AI 直接操控 CorelDRAW，实现设计文件的自动化生成与处理
 
 ## 项目简介
 
-本项目为标识制作工厂提供 AI 自动化设计能力，解决门牌、导向标识、铭牌等标准化标识设计文件的大量重复手工操作问题。
+本项目为 CorelDRAW 提供 MCP（Model Context Protocol）工具服务，让 AI Agent 能够通过 COM API 直接操作 CorelDRAW，完成文档创建、文字替换、图形操作、批量导出等设计任务。
 
 **核心价值**
 
-- 设计师只需准备一次 CDR 模板 + Excel 数据表，之后所有标识由 Agent 自动生成
-- 单条门牌生成时间从 5–10 分钟（手工）降至 30 秒以内，批量 500 块标识 < 30 分钟完成
-- 导出的印刷 PDF 和激光 DXF 直接在工厂设备上使用，无需二次调整
+- AI Agent 通过自然语言指令直接驱动 CorelDRAW 完成设计操作，无需手动重复执行
+- 支持模板填充、批量导出 PDF/DXF/PNG 等生产文件格式
+- 提供 Streamlit Chat UI 供设计师本地调试，也可通过 MCP 协议接入 Claude Desktop 等客户端
 
 ---
 
