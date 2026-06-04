@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] 补充开源发布文件：Apache 2.0 LICENSE、CONTRIBUTING.md、pyproject.toml license 元数据、.gitignore 排除 harness sessions
+
 [2026-06-04 FIX] prompts.py 补充 CorelDRAW 坐标系说明，修正 AI 绘图上下颠倒问题
 
 [2026-06-04 FIX] README 修正：Streamlit 无需同时启动 server.py，双 COM 会冲突

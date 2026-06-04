@@ -64,5 +64,9 @@ logs/
 # 临时文件
 tmp/
 temp/
+
+# harness 内部状态（session 日志，不对外公开）
 .harness/backup/
+.harness/registry/sessions/
+
 %SystemDrive%
