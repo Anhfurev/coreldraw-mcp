@@ -76,7 +76,7 @@
 ```bash
 # 1. 克隆项目
 git clone <repo-url>
-cd sign-CorelDRAW-mcp-opencode
+cd CorelDRAW-mcp
 
 # 2. 创建虚拟环境
 python -m venv .venv
@@ -108,15 +108,14 @@ MCP_PORT=8765
 ### 方式一：Streamlit 对话界面（推荐体验）
 
 ```bash
-# 先启动 MCP Server
-cd server
-python server.py
-
-# 另开一个终端，启动 Web UI
+# 确保 CorelDRAW 已启动，然后直接运行：
 streamlit run server/app.py
 ```
 
 浏览器打开 `http://localhost:8501`，在侧边栏填入 API Key，即可用自然语言操控 CorelDRAW。
+
+> **注意**：Streamlit UI 直接通过 COM 连接 CorelDRAW，无需另开 server.py。
+> 同时运行 server.py 和 app.py 会建立两个 COM 连接，可能引发冲突。
 
 ### 方式二：Claude Desktop / OpenCode 直连（MCP HTTP 模式）
 
