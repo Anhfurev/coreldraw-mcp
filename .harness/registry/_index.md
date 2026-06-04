@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] README 修正：Streamlit 无需同时启动 server.py，双 COM 会冲突
+
 [2026-06-04 FIX] runner.py 缺少 init_connection 导致 Streamlit 路径所有工具返回"CorelDRAW 未连接"
 
 [2026-06-04 FIX] OpenAI 超时 300s + DeepSeek reasoning_content 显示 + 错误终止消息修正
