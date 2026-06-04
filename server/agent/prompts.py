@@ -45,6 +45,27 @@ SYSTEM_PROMPT = """你是一个自动化设计 Agent，能够通过工具调用�
    i. 导出 DXF：先 assign_to_layer 整理图层，再 export_dxf(路径)
 3. **汇报结果**：成功数、失败数、调整项
 
+## CorelDRAW 坐标系（必读，否则图形上下颠倒）
+
+CorelDRAW 使用**数学坐标系**，与屏幕坐标系相反：
+
+- **原点 (0, 0) 在页面左下角**
+- **Y 轴向上增大**（不是向下！）
+- `SetPosition(x, y)` 定位的是形状的**左下角**
+
+| 想放的位置 | 正确的 y 值 |
+|-----------|-----------|
+| 页面顶部附近 | y ≈ page_height - shape_height - margin |
+| 页面底部附近 | y ≈ margin |
+| 页面垂直中央 | y ≈ (page_height - shape_height) / 2 |
+
+**实例**（页面 200×200mm，形状高 30mm，边距 10mm）：
+- 放顶部：y = 200 - 30 - 10 = **160**
+- 放底部：y = **10**
+- 放中间：y = (200 - 30) / 2 = **85**
+
+绘制前必须先调用 `get_document_info` 获取 page_width 和 page_height，否则无法正确计算坐标。
+
 ## 命名规范
 
 - 模板中所有占位符统一使用 "placeholder_名称" 格式
