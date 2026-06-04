@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] prompts.py 补充 CorelDRAW 坐标系说明，修正 AI 绘图上下颠倒问题
+
 [2026-06-04 FIX] README 修正：Streamlit 无需同时启动 server.py，双 COM 会冲突
 
 [2026-06-04 FIX] runner.py 缺少 init_connection 导致 Streamlit 路径所有工具返回"CorelDRAW 未连接"
