@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] OpenAI 超时 300s + DeepSeek reasoning_content 显示 + 错误终止消息修正
+
 [2026-06-03 STATUS] 查看项目完成情况 — feat-001~005/012~015 全部 passes=true，feat-011/010 延后，feat-006~009 预留
 
 [2026-04-30 DISCOVER] DISCOVER CorelDRAW COM API 工具缺口调研，11 大类未暴露能力写入 backlog → sessions/2026-04-30-discover.md
