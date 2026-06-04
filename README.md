@@ -1,24 +1,26 @@
-# CorelDRAW MCP 自动化设计
+# CorelDRAW Signage MCP
 
-> 通过 MCP 协议让 AI 直接操控 CorelDRAW，实现设计文件的自动化生成与处理
+> Let AI drive CorelDRAW directly via the Model Context Protocol — automated design file generation at scale
 
-## 项目简介
+[中文文档](README-CN.md)
 
-本项目为 CorelDRAW 提供 MCP（Model Context Protocol）工具服务，让 AI Agent 能够通过 COM API 直接操作 CorelDRAW，完成文档创建、文字替换、图形操作、批量导出等设计任务。
+## Overview
 
-**核心价值**
+This project exposes CorelDRAW as an MCP (Model Context Protocol) tool server. An AI Agent connects via COM API to create documents, replace text, manipulate shapes, run preflight checks, and batch-export production files — all from natural language instructions.
 
-- AI Agent 通过自然语言指令直接驱动 CorelDRAW 完成设计操作，无需手动重复执行
-- 支持模板填充、批量导出 PDF/DXF/PNG 等生产文件格式
-- 提供 Streamlit Chat UI 供设计师本地调试，也可通过 MCP 协议接入 Claude Desktop 等客户端
+**Key capabilities**
+
+- Natural language → CorelDRAW operations, no manual repetition
+- Template filling and batch export to PDF / DXF / PNG
+- Streamlit Chat UI for local debugging, or connect any MCP-compatible client (Claude Desktop, OpenCode, etc.)
 
 ---
 
-## 架构概览
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              设计师本地机器（Windows）             │
+│              Designer's machine (Windows)        │
 │                                                 │
 │  ┌──────────────┐      ┌────────────────────┐  │
 │  │  AI Agent    │─MCP─▶│   MCP Server       │  │
@@ -30,72 +32,73 @@
 │                                 │               │
 │                         ┌───────▼──────┐        │
 │                         │  CorelDRAW   │        │
-│                         │  (本地进程)  │        │
+│                         │ (local proc) │        │
 │                         └──────────────┘        │
 └─────────────────────────────────────────────────┘
-         │ LLM API 调用
+         │ LLM API calls
          ▼
-  公司 LiteLLM Proxy（规划中）
-  或 Anthropic / DeepSeek / Qwen 直连
+  Company LiteLLM Proxy (planned)
+  or Anthropic / DeepSeek / Qwen direct
 ```
 
-**三层结构**
+**Three-layer structure**
 
-| 层 | 组件 | 说明 |
-|----|------|------|
-| Agent 层 | `server/agent/runner.py` | LLM 工具调用主循环，支持 Claude / DeepSeek / Qwen |
-| MCP 工具层 | `server/server.py` + `server/tools/` | 30+ 个 CorelDRAW 操作工具，HTTP 或 stdio 传输 |
-| CorelDRAW 层 | `server/core/connection.py` | 通过 pywin32 COM API 驱动本地 CorelDRAW |
+| Layer | Component | Description |
+|-------|-----------|-------------|
+| Agent | `server/agent/runner.py` | LLM tool-call loop; supports Claude / DeepSeek / Qwen |
+| MCP tools | `server/server.py` + `server/tools/` | 30+ CorelDRAW tools, HTTP or stdio transport |
+| CorelDRAW | `server/core/connection.py` | Drives local CorelDRAW via pywin32 COM API |
 
-**MCP 工具分类**
+**Tool modules**
 
-| 模块 | 工具 | 功能 |
-|------|------|------|
-| `document` | 7 个 | 模板打开、新建、保存、关闭、页面管理 |
-| `shapes` | 11 个 | 矩形/椭圆/线段绘制、SVG/图片导入、布尔运算 |
-| `text` | 5 个 | 文字内容替换、样式设置、溢出检测、转曲 |
-| `colors` | 8 个 | CMYK/RGB/Pantone 填色、描边、RGB 合规检测 |
-| `layers` | 5 个 | 图层创建、查询、分配、显隐、锁定 |
-| `export` | 7 个 | PDF/DXF/AI/SVG/PNG 导出、视觉预览、批量导出 |
-| `preflight` | 4 个 | 尺寸检查、文字溢出、缺字体、颜色报告 |
-| `data_merge` | 3 个 | Excel 数据读取、条形码/二维码生成 |
-
----
-
-## 环境要求
-
-- **操作系统**：Windows 10/11（CorelDRAW COM API 仅支持 Windows）
-- **Python**：3.11+
-- **CorelDRAW**：X6 或更高版本（需已安装并激活；X6 已验证兼容）
-- **LLM API Key**：Anthropic Claude、DeepSeek 或阿里云百炼任选其一
+| Module | Tools | Functionality |
+|--------|-------|---------------|
+| `document` | 7 | Open template, create, save, close, page management |
+| `shapes` | 11 | Rectangle / ellipse / line drawing, SVG / image import, boolean ops |
+| `text` | 5 | Text replacement, style, overflow detection, convert to curves |
+| `colors` | 8 | CMYK / RGB / Pantone fill & stroke, RGB compliance check |
+| `layers` | 5 | Create, query, assign, show/hide, lock layers |
+| `export` | 7 | PDF / DXF / AI / SVG / PNG export, visual preview, batch export |
+| `preflight` | 4 | Size check, text overflow, missing fonts, color report |
+| `data_merge` | 3 | Excel data read, barcode / QR code generation |
 
 ---
 
-## 安装
+## Requirements
+
+- **OS**: Windows 10 / 11 (CorelDRAW COM API is Windows-only)
+- **Python**: 3.11+, **64-bit** (must match CorelDRAW's bitness)
+- **CorelDRAW**: X6 or later (must be installed and activated; X6 verified compatible)
+- **LLM API Key**: one of Anthropic Claude, DeepSeek, or Alibaba Qwen
+
+---
+
+## Installation
 
 ```bash
-# 1. 克隆项目
+# 1. Clone the repo
 git clone <repo-url>
-cd CorelDRAW-mcp
+cd coreldraw-signage-mcp
 
-# 2. 创建虚拟环境
+# 2. Create virtual environment
 python -m venv .venv
 .venv\Scripts\activate
 
-# 3. 安装依赖
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. 配置环境变量（复制示例后填入真实 Key）
+# 4. Configure environment variables
 copy .env.example .env
+# then fill in a real LLM API key
 ```
 
-`.env` 最小配置示例：
+Minimal `.env`:
 
 ```dotenv
-# 选择一个 LLM Provider
+# Pick one LLM provider
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
-# MCP Server 传输模式（stdio 或 streamable-http）
+# MCP Server transport (stdio or streamable-http)
 MCP_TRANSPORT=streamable-http
 MCP_HOST=127.0.0.1
 MCP_PORT=8765
@@ -103,31 +106,30 @@ MCP_PORT=8765
 
 ---
 
-## 运行
+## Usage
 
-### 方式一：Streamlit 对话界面（推荐体验）
+### Option 1 — Streamlit Chat UI (recommended for quick start)
 
 ```bash
-# 确保 CorelDRAW 已启动，然后直接运行：
+# Make sure CorelDRAW is running first, then:
 streamlit run server/app.py
 ```
 
-浏览器打开 `http://localhost:8501`，在侧边栏填入 API Key，即可用自然语言操控 CorelDRAW。
+Open `http://localhost:8501`, enter your API key in the sidebar, and control CorelDRAW with natural language.
 
-> **注意**：Streamlit UI 直接通过 COM 连接 CorelDRAW，无需另开 server.py。
-> 同时运行 server.py 和 app.py 会建立两个 COM 连接，可能引发冲突。
+> **Note**: The Streamlit UI connects to CorelDRAW directly via COM. Do **not** run `server.py` at the same time — two simultaneous COM connections can cause conflicts.
 
-### 方式二：Claude Desktop / OpenCode 直连（MCP HTTP 模式）
+### Option 2 — Claude Desktop / OpenCode via MCP HTTP
 
-项目根目录已包含 `.mcp.json`，Claude Desktop 或 OpenCode 可直接发现并连接本地 MCP Server：
+The repo ships a `.mcp.json` that Claude Desktop and OpenCode auto-discover:
 
 ```bash
-# 启动 MCP Server（HTTP 模式）
+# Start MCP Server in HTTP mode
 cd server
 MCP_TRANSPORT=streamable-http python server.py
 ```
 
-### 方式三：stdio 模式（供 MCP 客户端调用）
+### Option 3 — stdio mode (for MCP client integration)
 
 ```bash
 cd server
@@ -136,71 +138,80 @@ MCP_TRANSPORT=stdio python server.py
 
 ---
 
-## 典型使用场景
+## Example prompts
 
-**批量生成门牌**
+**Batch room-number signs**
 
-1. 准备 CDR 模板文件（含文字占位符），放入 `server/templates/`
-2. 准备 Excel 数据表（每行一条门牌信息）
-3. 在对话框输入：`批量生成门牌，模板用 room_template.cdr，数据用 rooms.xlsx`
-4. Agent 自动读取数据、逐条填充模板、印前检查、导出 PDF 和 DXF
+1. Place a CDR template (with text placeholders) in `server/templates/`
+2. Prepare an Excel sheet (one sign per row)
+3. Type: `Batch generate room signs, template: room_template.cdr, data: rooms.xlsx`
+4. The agent reads the data, fills the template row by row, runs preflight, and exports PDF + DXF
 
-**单条快速出稿**
+**Single sign, quick output**
 
 ```
-生成一块 300×150mm 的门牌，房间号 301，部门名"研发中心"，
-背景色 CMYK(0,0,0,80)，导出印刷 PDF 和激光 DXF
+Create a 300×150 mm room sign, room number 301, department "R&D Center",
+background CMYK(0,0,0,80), export print-ready PDF and laser-cut DXF
 ```
 
 ---
 
-## 目录结构
+## Directory structure
 
 ```
-sign-CorelDRAW-mcp-opencode/
+coreldraw-signage-mcp/
 ├── server/
-│   ├── server.py          # MCP Server 入口
+│   ├── server.py          # MCP Server entry point
 │   ├── app.py             # Streamlit Web UI
 │   ├── agent/
-│   │   ├── runner.py      # Agent 主循环（LLM + 工具调用）
+│   │   ├── runner.py      # Agent main loop (LLM + tool calls)
 │   │   └── prompts.py     # System prompt
-│   ├── tools/             # MCP 工具实现（30+ 个工具）
-│   ├── core/              # CorelDRAW COM 连接与公共模型
-│   ├── config/            # 配置与模板注册表
-│   └── templates/         # CDR 模板文件目录
-├── docs/                  # 架构设计文档与示意图
+│   ├── tools/             # MCP tool implementations (30+ tools)
+│   ├── core/              # CorelDRAW COM connection & shared models
+│   ├── config/            # Settings & template registry
+│   └── templates/         # CDR template files
+├── docs/                  # Architecture docs & diagrams
+├── CONTRIBUTING.md
+├── LICENSE
+├── NOTICE
 ├── requirements.txt
 └── pyproject.toml
 ```
 
 ---
 
-## 开发
+## Development
 
 ```bash
-# 安装开发依赖
+# Install dev dependencies
 pip install -e ".[dev]"
 
-# 代码检查
+# Lint
 ruff check server/
 
-# 端到端测试（需本地 CorelDRAW 已启动）
+# End-to-end test (requires CorelDRAW running locally)
 cd server
 python test_e2e.py
 ```
 
 ---
 
-## 路线图
+## Roadmap
 
-| 阶段 | 状态 | 内容 |
-|------|------|------|
-| 第一阶段 MVP | ✅ 已完成 | MCP Server + 30+ 工具 + Agent 主循环 + HTTP 模式 |
-| 第二阶段 | 进行中 | LiteLLM Proxy 统一 LLM 管理、Agent 编排迁移至 LangGraph |
-| 预留设计 | 架构已规划 | 公司派单模式：任务队列、多工作站 Worker、并发锁 |
+| Phase | Status | Scope |
+|-------|--------|-------|
+| Phase 1 MVP | ✅ Done | MCP Server + 30+ tools + Agent loop + HTTP transport |
+| Phase 2 | In progress | LiteLLM Proxy for unified LLM management; migrate agent orchestration to LangGraph |
+| Planned | Architecture drafted | Company dispatch mode: task queue, multi-workstation workers, concurrency lock |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Note: the COM API is Windows-only, so end-to-end testing requires a Windows machine with CorelDRAW installed.
 
 ---
 
 ## License
 
-MIT
+Apache 2.0 © 2026 深圳市玄熵智能科技有限责任公司 (Xuanshang Intelligent Technology Co., Ltd., Shenzhen)
