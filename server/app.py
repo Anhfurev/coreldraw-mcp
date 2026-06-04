@@ -3,8 +3,6 @@
 启动: streamlit run server/app.py
 """
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -107,6 +105,11 @@ for msg in st.session_state.messages:
     if role == "separator":
         st.divider()
 
+    elif role == "reasoning":
+        with st.chat_message("assistant"):
+            with st.expander("🧠 推理过程", expanded=False):
+                st.markdown(msg["content"])
+
     elif role == "tool_call":
         with st.chat_message("assistant"):
             with st.expander(f"🔧 {msg['name']}", expanded=False):
@@ -164,6 +167,12 @@ if prompt := st.chat_input("请输入设计指令，如：生成门牌301，部�
             if etype == "thinking":
                 status_placeholder.info(f"🤔 思考中… (第 {event['turn']} 轮)")
 
+            # ---- reasoning (DeepSeek 推理模型的思维链) ----
+            elif etype == "reasoning":
+                with st.expander("🧠 推理过程", expanded=True):
+                    st.markdown(event["content"])
+                st.session_state.messages.append({"role": "reasoning", "content": event["content"]})
+
             # ---- text ----
             elif etype == "text":
                 if event["content"].strip():
@@ -183,7 +192,7 @@ if prompt := st.chat_input("请输入设计指令，如：生成门牌301，部�
                 result = event["result"]
                 inp = tool_results_buffer.get(name, {}).get("input", {})
 
-                with st.expander(f"🔧 {name}", expanded=False):
+                with st.expander(f"🔧 {name}", expanded=True):
                     cols = st.columns(2)
                     with cols[0]:
                         st.caption("参数")

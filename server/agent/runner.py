@@ -206,7 +206,7 @@ class SignageAgent:
                 from openai import OpenAI
             except ImportError:
                 raise ImportError("请安装 openai: pip install openai")
-            kwargs = {"api_key": self.api_key}
+            kwargs = {"api_key": self.api_key, "timeout": 300.0}
             if self.base_url:
                 kwargs["base_url"] = self.base_url.rstrip("/") + "/v1" if not self.base_url.endswith("/v1") else self.base_url
             self._client = OpenAI(**kwargs)
@@ -504,6 +504,10 @@ class SignageAgent:
 
             choice = response.choices[0]
             msg = choice.message
+
+            reasoning = getattr(msg, "reasoning_content", None)
+            if reasoning:
+                yield {"type": "reasoning", "content": reasoning}
 
             if msg.tool_calls:
                 total_calls += len(msg.tool_calls)
