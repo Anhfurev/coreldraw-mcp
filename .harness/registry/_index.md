@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] 新增英文 README，原中文版改为 README-CN，修正两处 License 行错写的 MIT → Apache 2.0
+
 [2026-06-04 FIX] 版权主体改为深圳市玄熵智能科技有限责任公司，新增 NOTICE 文件，格式与 My-Hermes-Desktop 一致
 
 [2026-06-04 FIX] 补充开源发布文件：Apache 2.0 LICENSE、CONTRIBUTING.md、pyproject.toml license 元数据、.gitignore 排除 harness sessions
