@@ -13,6 +13,8 @@
 
 ---
 
+[2026-06-04 FIX] runner.py 缺少 init_connection 导致 Streamlit 路径所有工具返回"CorelDRAW 未连接"
+
 [2026-06-04 FIX] OpenAI 超时 300s + DeepSeek reasoning_content 显示 + 错误终止消息修正
 
 [2026-06-03 STATUS] 查看项目完成情况 — feat-001~005/012~015 全部 passes=true，feat-011/010 延后，feat-006~009 预留
