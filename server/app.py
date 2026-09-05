@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from dotenv import load_dotenv
+
+# 读取 .env，侧边栏的 API Key 留空时即可回退到环境变量（与 server.py 行为一致）
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # 确保 server/ 目录在 sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
