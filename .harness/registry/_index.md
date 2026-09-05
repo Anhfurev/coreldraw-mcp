@@ -13,6 +13,7 @@
 
 ---
 
+[2026-09-05 19:40] BUILD/临时探索 完成球衣批量原型第二轮：修正了对位标记的真实规则（正面 21cm 垂/14cm 平，背面 14cm 垂/40cm 平，姓名对齐背面标记而非之前误判的 40cm 处）；在用户手动完成的参考页基础上新增 10 页代表 10 个随机球员（3 档体型：童装/成人/大码，尺寸为占位编造值），批量导出 10 张 PNG 并按姓名_号码命名。过程中再次确认"用户会直接在 CorelDRAW 手动操作，与 Agent 脚本同一文档同时进行"的协作风险（已写入 backlog 已知约束）。create_artistic_text 及批量生成脚本仍未提交 git，等待用户确认
 [2026-09-05 18:20] BUILD/临时探索 用户口述了一个全新业务场景（运动球衣印刷）并要求现场用 MCP 试做：新增 create_artistic_text 工具（text.py，此前项目只有段落文本框创建，没有可精确测量包围盒的美术字创建能力）；用真实 CorelDRAW 搭建了单件球衣原型（前后片面板 + 姓名等比缩小到 25cm 内 + 号码按前13cm/后19cm 精确定高）并截图人工核查通过；过程中发现并记录了 set_shape_position 与创建类工具 y 参数基准不一致的坑（见 backlog.md 已知约束）。此业务线尚未过 DISCOVER/DESIGN 评审，规则细节记在 backlog.md 待评估区，create_artistic_text 的代码改动本次会话尚未提交（等待用户确认）
 [2026-09-05 16:35] VERIFY 端到端联调 MCP Server（真实 CorelDRAW + Windows 环境）：Windows 侧无真实 Python（.venv 是 OneDrive 同步残留的 macOS venv），重建 64-bit Python 3.11 venv 并安装依赖；启动 HTTP 模式 server，验证 81 个工具注册成功，实测 get_document_info/create_rectangle/view_canvas/set_fill_rgb/export_pdf 均对真实 CorelDRAW 生效；发现并修复 colors.py 中 4 处 `.Selection`（惰性绑定下是未调用的 bound method）→ `.Selection()` 的 bug，修复后验证选区填色路径正常 → 详见 backlog.md 已知约束区
 [2026-06-04 FIX] 新增英文 README，原中文版改为 README-CN，修正两处 License 行错写的 MIT → Apache 2.0
