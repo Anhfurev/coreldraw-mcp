@@ -35,6 +35,11 @@
   - **已完成一轮批量测试**（2026-09-05，共三次尝试才做对）：基于用户手动完成的参考件（page 1），用上述 group-duplicate 方法生成了 10 个球员（3 童装、5 成人、2 大码，均为 Agent 编造的占位尺寸），已发截图给用户核对，尚未收到最终确认；真实生产还需要用户提供实际体型数据
   - 尚未正式过 DISCOVER/DESIGN 评审，仅做了原型验证（单件 + 10 人批量），未来若要产品化需要走完整流程并把此条从"待评估"移到"已规划"（建议届时把 create_artistic_text 工具的批量生成逻辑固化成 tools/jersey.py 之类的专用模块，而不是每次现写脚本）
 
+- [2026-09-05] [用户反馈] 性能/成本优化方向讨论（三条，均未拍板，等用户回复先做哪个）：
+  1) SignageAgent 简单任务路由到免费/轻量开源模型 — `agent/runner.py` 已有 `provider="openai"` + 自定义 `base_url` 机制（DeepSeek/千问同款接法），理论上可直接复用同一路径接入 Hermes 系模型；用户口头提到的"OpenClaw"不是已知的真实 API，疑似指 OpenRouter 或笔误，需用户提供真实文档链接/API base URL 才能接线，不能凭空猜测 URL。核心风险：开源模型的 function-calling 可靠性参差不齐（本 Agent 完全依赖工具调用驱动 CorelDRAW），换模型前必须先用真实多步工具调用任务测试，不能只看单轮问答效果
+  2) 简单任务完全跳过 LLM、用规则/模式匹配直接调工具（省掉一次模型调用）— 仅讨论，未设计，需要先定义"简单任务"的判定标准
+  3) `view_canvas`（截图 + 视觉模型）调用应降级为兜底手段：优先用已存在的 `get_document_info`/`list_all_text_shapes`/`check_text_overflow_all`/`check_rgb_colors`/`get_color_report`/`find_shape_by_name`/`get_layers` 等直接读取文档对象模型的工具，只在真正需要人眼审美判断（如排版是否顺眼）时才截图；这条是可直接采纳的调用习惯调整，不需要新代码
+
 ## 已规划
 
 > 已进入某个 Sprint 的需求，从"待评估"移过来，注明 Sprint。
