@@ -13,6 +13,7 @@
 
 ---
 
+[2026-09-05 19:50] DONE OpenRouter 接入完成并实测通过（commit 8e45eca）：runner.py 的 key 解析链加入 OPENROUTER_API_KEY、requirements.txt 补声明 openai（此前 openai provider 分支的依赖从未声明、venv 里没装）。`minimax/minimax-m3:free` 免费模型 function-calling 完全可用，含单轮并行多工具调用；完整 Agent 驱动真实 CorelDRAW 只读任务 5.9s 成功。**关键实测数据**：这 5.9s 里 LLM 占 ~85%（两轮往返 3.8s + 2.9s），CorelDRAW 实际执行仅 0.8s，工具注册+COM 连接 0.2s —— 证明"5 秒目标"靠换模型达不到（单次往返 2~7s、一个任务至少两轮），必须靠简单任务跳过 LLM 走代码直接路径 → 详见 sessions/2026-09-05-1950.md
 [2026-09-05 23:35] DISCOVER 延续上一条性能优化讨论，回答了三个具体问题：(1) "5秒内完成简单编辑"可行——不是靠换更快模型，而是简单任务走代码直接路径（跳过 LLM），AI 分析/视觉核查异步并行做、不阻塞返回结果；(2) 多人使用是否需要各自 API Key——小规模可共享同一个 key（各自 .env 放同一份，零新代码），需要按人限流/计费时才是 feat-011 LiteLLM Proxy 要解决的问题（backlog 已有，未实现）；(3) 用户尚未提供 OpenRouter key/模型 slug，接入 Hermes 系模型的代码改动仍未开始
 [2026-09-05 23:20] FIX 面料代码标签"3016"从约 5mm 高放大到 10mm（1cm），用户反馈原尺寸太小看不清；保持左上角锚点不变，等比缩放宽度，全部 22 处（11 正 + 11 反）已更新
 [2026-09-05 23:15] DISCOVER 讨论性能/成本优化三个方向（轻量模型路由、跳过 LLM 的规则路由、用文档对象模型工具替代截图视觉检查），均未拍板实现，记入 backlog.md 待评估区
