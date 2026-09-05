@@ -175,6 +175,7 @@ class SignageAgent:
             os.environ.get("OPENAI_API_KEY")
             or os.environ.get("DASHSCOPE_API_KEY")
             or os.environ.get("DEEPSEEK_API_KEY")
+            or os.environ.get("OPENROUTER_API_KEY")
         )
 
     # ---- 工具初始化 ----
