@@ -80,7 +80,13 @@ def _set_char_spacing(shape, value: float) -> bool:
 
 
 def _collect(doc) -> tuple[list[dict], list[dict]]:
-    """遍历一次页面，分出文字形状和候选面板形状（必须在 COM 线程内调用）"""
+    """遍历一次页面，分出文字形状和候选面板形状（必须在 COM 线程内调用）。
+
+    !! 不要改用 GetBoundingBox() 代替 PositionX/PositionY/SizeWidth/SizeHeight —— 2026-09-05
+    试过，虽然对单个形状测试时数值一致、实测快 3 倍，但对某些形状（怀疑是带描边/效果的）
+    GetBoundingBox() 返回的是视觉包围盒（可能含描边宽度等），与 Position/Size 这两组
+    属性不是同一件事，真实文件上直接导致多个球衣的居中偏移从 <0.1mm 错报成 200+mm。
+    这里的性能优化必须等搞清楚两者的精确差异后再做，不能为了快而牺牲正确性。"""
     texts, panels = [], []
     shapes = doc.ActivePage.Shapes
     for i in range(1, shapes.Count + 1):
@@ -347,7 +353,8 @@ def _row_shapes_by_y(doc, anchor_y: float) -> list:
 
 
 def _shape_y_extent(s) -> tuple[float, float]:
-    """(底边, 顶边)，不假设 PositionY 是哪个角——两个值都算出来再取 min/max 更稳妥"""
+    """(底边, 顶边)，不假设 PositionY 是哪个角——两个值都算出来再取 min/max 更稳妥。
+    不要改用 GetBoundingBox()，原因见 _collect() 顶部注释。"""
     y, h = s.PositionY, s.SizeHeight
     return min(y, y + h), max(y, y + h)
 
