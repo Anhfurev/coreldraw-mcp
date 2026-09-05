@@ -8,6 +8,7 @@
 
 ## 待评估
 
+- [2026-09-05] [参考] Gemini 的 OpenAI 兼容接口已核实可作为 OpenRouter 免费额度打满时的备用视觉方案：base_url=`https://generativelanguage.googleapis.com/v1beta/openai/`，免费 Key 在 https://aistudio.google.com/apikey 申请（Google 官方文档核实，与 OpenRouter 账号完全独立、配额不共享）；消息格式与 OpenAI 的 `image_url`/base64 完全一致，runner.py 的 openai provider 不需要改代码就能接。免费档位是 Flash 系列，15 RPM/1500 RPD，具体哪个型号名称在免费档需要拿到真实 Key 后用类似今晚 OpenRouter 的方法实测确认（不能直接信文档示例里的型号名，要验证）；Pro 系列已从免费档移除。用户尚未提供 Key，接入工作未开始。
 - [2026-09-05] [用户反馈] CorelDRAW 侧边栏自定义 Docker（把 CorelChamp 做成原生停靠面板）——用户截图确认"Links and Rollovers"、"Sources"就是普通 Docker（在 Window > Dockers 勾选列表和右侧竖排图标栏里，与 Object Manager 同一套机制），证实了 SDK 里 DockerTemplateJS 模板的真实性。真要做需要单独的 C#/.NET SDK 插件项目（不是这个 Python/Streamlit 项目能直接扩展的），且旧版模板用的是 IE 旧引擎渲染（非确认过的 WebView2），现代 SDK 是否已升级还没查证。当前仅确认"可行"，未评估工作量，未立项。
 
 
