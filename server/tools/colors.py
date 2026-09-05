@@ -43,7 +43,7 @@ def set_fill_cmyk(c: float, m: float, y: float, k: float, shape_id: str = "") ->
                 raise ValueError(f"未找到形状: {shape_id}")
             shape.Fill.UniformColor.CMYKAssign(c, m, y, k)
         else:
-            sel = conn.app.ActiveDocument.Selection
+            sel = conn.app.ActiveDocument.Selection()
             if not sel or sel.Shapes.Count == 0:
                 raise RuntimeError("没有选中的形状，请指定 shape_id 或先选中形状")
             for s in sel.Shapes:
@@ -72,7 +72,7 @@ def set_fill_rgb(r: int, g: int, b: int, shape_id: str = "") -> ToolResult:
                 raise ValueError(f"未找到形状: {shape_id}")
             shape.Fill.UniformColor.RGBAssign(r, g, b)
         else:
-            sel = conn.app.ActiveDocument.Selection
+            sel = conn.app.ActiveDocument.Selection()
             if not sel or sel.Shapes.Count == 0:
                 raise RuntimeError("没有选中的形状")
             for s in sel.Shapes:
@@ -159,7 +159,7 @@ def set_no_fill(shape_id: str = "") -> ToolResult:
                 raise ValueError(f"未找到形状: {shape_id}")
             shape.Fill.ApplyNoFill()
         else:
-            sel = conn.app.ActiveDocument.Selection
+            sel = conn.app.ActiveDocument.Selection()
             if not sel or sel.Shapes.Count == 0:
                 raise RuntimeError("没有选中的形状")
             for s in sel.Shapes:
@@ -188,7 +188,7 @@ def set_no_outline(shape_id: str = "") -> ToolResult:
                 raise ValueError(f"未找到形状: {shape_id}")
             shape.Outline.SetNoOutline()
         else:
-            sel = conn.app.ActiveDocument.Selection
+            sel = conn.app.ActiveDocument.Selection()
             if not sel or sel.Shapes.Count == 0:
                 raise RuntimeError("没有选中的形状")
             for s in sel.Shapes:
