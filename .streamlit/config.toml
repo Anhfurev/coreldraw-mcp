@@ -1,0 +1,9 @@
+# CorelChamp UI theme — white background, CorelDRAW-style green accent.
+# https://docs.streamlit.io/develop/api-reference/configuration/config.toml
+
+[theme]
+base = "light"
+primaryColor = "#00A651"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F6F7"
+textColor = "#1F2937"
