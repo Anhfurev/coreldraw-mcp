@@ -220,6 +220,8 @@ for msg in st.session_state.messages:
 
     elif role in ("assistant", "user"):
         with st.chat_message(role, avatar=BOT_AVATAR if role == "assistant" else USER_AVATAR):
+            for data_uri in msg.get("images", []):
+                st.image(data_uri, width=250)
             st.markdown(msg["content"])
 
     elif role == "error":
@@ -230,17 +232,50 @@ for msg in st.session_state.messages:
 # 用户输入与 Agent 执行
 # =============================================================================
 
-if prompt := st.chat_input("Анхууштай чатлах…"):
+submission = st.chat_input(
+    "Анхууштай чатлах…",
+    accept_file=True,
+    file_type=["png", "jpg", "jpeg", "webp"],
+)
+
+if submission:
+    prompt_text = submission.text or "Read this image and describe what you see."
+    uploaded_images = []  # [(mime, base64_str), ...]
+    for f in submission.files:
+        mime = f.type or "image/png"
+        b64 = base64.b64encode(f.getvalue()).decode()
+        uploaded_images.append((mime, b64))
+
     if not st.session_state.connected or st.session_state.agent is None:
         st.error("Эхлээд зүүн талын хажуу самбар дээр загвараа тохируулж «🔗 Холбох» товчийг дарна уу")
         st.stop()
 
+    data_uris = [f"data:{mime};base64,{b64}" for mime, b64 in uploaded_images]
+
     # 展示用户消息
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.messages.append({"role": "user", "content": prompt_text, "images": data_uris})
     with st.chat_message("user", avatar=USER_AVATAR):
-        st.markdown(prompt)
+        for uri in data_uris:
+            st.image(uri, width=250)
+        st.markdown(prompt_text)
 
     agent: SignageAgent = st.session_state.agent
+
+    # 有图片时按当前 provider 拼多模态 content；没有图片时保持原来的纯字符串，兼容不变。
+    # openai 兼容（OpenRouter/Gemini）用 image_url + data URI；anthropic 用 image + base64 source。
+    if uploaded_images:
+        if st.session_state.provider == "anthropic":
+            content_blocks = [{"type": "text", "text": prompt_text}] + [
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}}
+                for mime, b64 in uploaded_images
+            ]
+        else:
+            content_blocks = [{"type": "text", "text": prompt_text}] + [
+                {"type": "image_url", "image_url": {"url": uri}} for uri in data_uris
+            ]
+        agent_input = content_blocks
+    else:
+        agent_input = prompt_text
 
     # 运行 Agent，实时渲染事件 —— 思考/工具调用放进可折叠的 status（真正的"加载中"效果），
     # 最终答案作为普通聊天气泡显示在 status 外面，不再用一整块绿色 success 框包住回答
@@ -250,7 +285,7 @@ if prompt := st.chat_input("Анхууштай чатлах…"):
         final_event = None
 
         with st.status("Thinking…", expanded=True) as status:
-            for event in agent.run_single_stream(prompt):
+            for event in agent.run_single_stream(agent_input):
                 etype = event["type"]
 
                 if etype == "thinking":
@@ -302,6 +337,9 @@ if prompt := st.chat_input("Анхууштай чатлах…"):
                 elif etype == "error":
                     status.update(label="❌ Error", state="error")
                     final_event = event
+                    break  # 不能只 set 不 break——生成器紧接着还会 yield 一个通用文案的
+                           # "final" 事件，如果这里不 break，下一轮循环会把 final_event
+                           # 覆盖成那个通用事件，真正的错误原因（event["error"]）就丢了
 
                 elif etype == "final":
                     status.update(label="✅ Done" if event["success"] else "❌ Failed",

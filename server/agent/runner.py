@@ -107,6 +107,23 @@ def _register_tools():
     logger.info(f"Agent 工具注册完成，共 {len(_TOOL_REGISTRY)} 个工具")
 
 
+def _tool_call_dict(tc) -> dict:
+    """把 tool_call 对象转成回填进 messages 历史需要的 dict。保留 extra_content（如果有）——
+    Gemini 的 OpenAI 兼容层要求每个 tool_call 带一个 thought_signature（藏在
+    extra_content.google.thought_signature 里），下一轮请求如果没有原样带回这个字段，
+    Gemini 会直接报 400 拒绝请求（其他 provider 没有这个字段，getattr 拿到 None，
+    不受影响）。"""
+    d = {
+        "id": tc.id,
+        "type": "function",
+        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+    }
+    extra = getattr(tc, "extra_content", None)
+    if extra:
+        d["extra_content"] = extra
+    return d
+
+
 def _execute_tool(name: str, arguments: dict) -> dict:
     if name not in _TOOL_REGISTRY:
         return {"success": False, "error": f"未知工具: {name}"}
@@ -157,8 +174,8 @@ class SignageAgent:
     ):
         self.provider = provider
         self.model = model or self._default_model()
-        self.api_key = api_key or self._resolve_api_key()
         self.base_url = base_url
+        self.api_key = api_key or self._resolve_api_key()
         self.tools: list[dict] = []
         self._client = None
         self._init_tools()
@@ -171,11 +188,26 @@ class SignageAgent:
     def _resolve_api_key(self) -> Optional[str]:
         if self.provider == "anthropic":
             return os.environ.get("ANTHROPIC_API_KEY")
+        # base_url 决定了请求实际发给哪家服务，key 必须跟着 base_url 走，不能是固定顺序的
+        # fallback 链——同时配置了多个 provider 的 key 时，固定顺序会把错误的 key 发给
+        # 错误的服务（实测：同时有 OPENROUTER_API_KEY 和 GEMINI_API_KEY 时，固定顺序会把
+        # OpenRouter 的 key 发给 Gemini 的 endpoint，Gemini 直接拒绝）。
+        url = (self.base_url or "").lower()
+        if "openrouter.ai" in url:
+            return os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if "generativelanguage.googleapis.com" in url:
+            return os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if "deepseek.com" in url:
+            return os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if "dashscope.aliyuncs.com" in url:
+            return os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        # 未识别的 base_url（含空，即默认 OpenAI 官方）——按原有顺序兜底
         return (
             os.environ.get("OPENAI_API_KEY")
             or os.environ.get("DASHSCOPE_API_KEY")
             or os.environ.get("DEEPSEEK_API_KEY")
             or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
         )
 
     # ---- 工具初始化 ----
@@ -333,14 +365,7 @@ class SignageAgent:
                 messages.append({
                     "role": "assistant",
                     "content": msg.content or "",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-                        }
-                        for tc in msg.tool_calls
-                    ],
+                    "tool_calls": [_tool_call_dict(tc) for tc in msg.tool_calls],
                 })
 
                 preview_images = []  # 收集预览 PNG 路径，后续作为 user 消息发送
@@ -521,9 +546,7 @@ class SignageAgent:
 
                 messages.append({
                     "role": "assistant", "content": msg.content or "",
-                    "tool_calls": [{"id": tc.id, "type": "function",
-                                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                                   for tc in msg.tool_calls],
+                    "tool_calls": [_tool_call_dict(tc) for tc in msg.tool_calls],
                 })
 
                 preview_images = []
