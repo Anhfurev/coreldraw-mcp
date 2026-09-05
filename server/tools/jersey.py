@@ -289,19 +289,24 @@ def set_jersey_players(updates: list, dry_run: bool = False) -> ToolResult:
         if not rows:
             raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
 
-        results = []
+        # 先校验全部记录，通过后才开始写入 —— 避免"改到一半发现某条行号超范围/
+        # 内容为空才报错"，此时前面几条已经真实写进了 CorelDRAW 却整体报失败、
+        # 用户看不出哪些其实已经改了。
+        parsed = []
         for item in updates:
             row = int(item.get("row", 0))
             if row < 1 or row > len(rows):
-                raise ValueError(f"行号 {row} 超出范围，当前共 {len(rows)} 件球衣")
+                raise ValueError(f"行号 {row} 超出范围，当前共 {len(rows)} 件球衣，未写入任何内容")
             name = str(item.get("name", "") or "")
             number = str(item.get("number", "") or "")
             if not name and not number:
-                raise ValueError(f"第 {row} 项既没有 name 也没有 number")
-            results.append({
-                "row": row,
-                "changes": _apply_one(rows[row - 1], panels, name, number, dry_run),
-            })
+                raise ValueError(f"第 {row} 项既没有 name 也没有 number，未写入任何内容")
+            parsed.append((row, name, number))
+
+        results = [
+            {"row": row, "changes": _apply_one(rows[row - 1], panels, name, number, dry_run)}
+            for row, name, number in parsed
+        ]
         return {"dry_run": dry_run, "total_rows": len(rows), "results": results}
 
     result = conn.safe_call(_apply)
@@ -310,3 +315,142 @@ def set_jersey_players(updates: list, dry_run: bool = False) -> ToolResult:
         verb = "将要修改" if dry_run else "已修改"
         return ToolResult.ok(f"{verb} {len(data['results'])} 件球衣", **data)
     return ToolResult.fail(result.get("error", "批量修改球衣失败"))
+
+
+# 一行球衣的真实构成（2026-09-05 在真实文件上逐个形状核实过，比只看 4 个命名文字复杂得多）：
+#   2 个面板矩形（正/背，尺寸按体型不同分 600x800 / 750x1000 等几档，不是固定值）+
+#   4 个命名文字 + 背面十字标记(2条独立线) + 正面十字标记(1个含2条线的 group，做法与背面
+#   不一致，是手工搭建参考件时留下的不一致，不是 bug) + 2 个面料标签（复制时误继承了
+#   REF_BACK_NAME 这个名字，因此不能按名字识别一整行——只能按 Y 坐标）。
+#
+# 行与行之间的间距不是固定值——不同体型（童装/成人/大码）面板高度不同，行间距会跟着变。
+# 相邻两行之间的固定规则是面板边缘留白 20mm（已向用户确认），不是锚点到锚点的固定距离。
+_ROW_Y_BAND = 600.0  # mm，用于按 Y 坐标圈出"一整行"的粗筛半径，取最大面板高度(1000mm)的
+                     # 六成左右——宽到能包住最高档体型的面板+十字标记，窄到不会连到下一行
+_ROW_CLEARANCE = 20.0  # mm，相邻两行"面板边缘到面板边缘"的固定留白（已向用户确认，与体型无关）
+
+
+def _row_shapes_by_y(doc, anchor_y: float) -> list:
+    """整行的全部 top-level 形状（含面板/十字标记/面料标签等非文字形状），按 Y 坐标而非
+    名称收集——面料标签和两个十字标记的命名在行内/行间都有重复，靠名字识别不可靠。"""
+    shapes = doc.ActivePage.Shapes
+    out = []
+    for i in range(1, shapes.Count + 1):
+        s = shapes.Item(i)
+        try:
+            y = s.PositionY
+        except Exception:
+            continue
+        if abs(y - anchor_y) <= _ROW_Y_BAND:
+            out.append(s)
+    return out
+
+
+def _shape_y_extent(s) -> tuple[float, float]:
+    """(底边, 顶边)，不假设 PositionY 是哪个角——两个值都算出来再取 min/max 更稳妥"""
+    y, h = s.PositionY, s.SizeHeight
+    return min(y, y + h), max(y, y + h)
+
+
+def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
+    """把已有的一整件球衣（面板、正反面文字、两个十字对位标记、两个面料标签，完整复制，
+    不遗漏任何一个形状）复制出 count 份新的，追加在当前最上面一行的上方（不是下方——
+    本文件下方剩余空间通常不够一整行，上方空间更充足，具体以运行时页面实际剩余空间为准，
+    不是猜测）。新行与现有最上面一行之间、以及新行彼此之间，按面板边缘留白 20mm 计算
+    间距——不同体型的面板高度不同，因此不能假设行与行之间是固定的锚点间距。
+
+    复制出的新行内容、位置、大小与源完全相同（相当于"再印一件一模一样的"），复制后需要
+    再调用 set_jersey_players 改成员的姓名/号码——这是"先复制骨架、再批量填内容"两步流程
+    里的第一步，目的是把"20 件球衣"从"AI 一步步想该怎么做"（每步都要等一次 2~7 秒的
+    模型往返）变成"一次脚本调用"，详见 backlog.md 已知约束里的耗时实测。
+
+    source_row: 作为复制模板的行号（1 = 页面最上面那件，决定新行的体型规格，
+                用 scan_jersey_rows 查看现有行号）。
+    count: 要新增几件，默认 1（建议先用 1 验证效果，确认无误再一次性复制剩余数量）。
+
+    会拒绝执行而不是猜一个可能出错的位置的情况：新行会超出页面顶部边界——页面里没有
+    足够空间放这么多新行，需要先手动把页面调高（注意 set_page_size 会围绕页面中心
+    缩放，已有形状坐标会整体偏移，调完之后所有涉及坐标的操作都要重新读取，不能用
+    调整前的坐标）。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+    if count < 1:
+        return ToolResult.fail("count 必须 >= 1")
+
+    def _duplicate():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("没有打开的文档")
+        doc.Unit = _CDR_MILLIMETER
+        page_height = doc.ActivePage.SizeHeight
+        texts, panels = _collect(doc)
+        rows = _build_rows(texts, panels)
+        if not rows:
+            raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
+        if source_row < 1 or source_row > len(rows):
+            raise ValueError(f"行号 {source_row} 超出范围，当前共 {len(rows)} 件球衣")
+
+        source_anchor_y = rows[source_row - 1]["anchor_y"]
+        source_shapes = _row_shapes_by_y(doc, source_anchor_y)
+        if len(source_shapes) < 8:
+            raise ValueError(
+                f"第 {source_row} 行只找到 {len(source_shapes)} 个形状，"
+                "明显少于一整行应有的数量，拒绝复制以免遗漏元素"
+            )
+
+        # 该行真实的底边/顶边相对锚点的偏移（不假设固定面板尺寸，直接量真实形状范围）
+        extents = [_shape_y_extent(s) for s in source_shapes]
+        row_bottom_offset = min(e[0] for e in extents) - source_anchor_y
+        row_top_offset = max(e[1] for e in extents) - source_anchor_y
+        row_height = row_top_offset - row_bottom_offset
+
+        # 现有页面上所有形状的最高点（不止 source_row，因为最上面一行不一定是 source_row）
+        all_shapes = [doc.ActivePage.Shapes.Item(i) for i in range(1, doc.ActivePage.Shapes.Count + 1)]
+        current_top = max(_shape_y_extent(s)[1] for s in all_shapes)
+
+        # 先算出全部 count 个目标位置并校验，全部通过才开始写——不要边写边查，
+        # 否则第 k 件超出页面时前面 k-1 件已经真实创建了，却整体报"失败"
+        margin = 5.0  # mm，留一点余量而不是刚好贴到页面边缘
+        targets = []
+        for k in range(count):
+            # 第 1 件贴着现有最高行的顶边留 20mm；第 2 件及以后贴着上一件新行的顶边留 20mm
+            # （新行彼此尺寸相同，间距自然一致，不需要再假设）
+            prev_top = current_top if k == 0 else targets[-1] + row_top_offset
+            new_row_bottom = prev_top + _ROW_CLEARANCE
+            target_anchor_y = new_row_bottom - row_bottom_offset
+            projected_top = target_anchor_y + row_top_offset
+            if projected_top > page_height - margin:
+                raise ValueError(
+                    f"第 {k + 1} 件新球衣会超出页面顶部（预计顶部 {round(projected_top, 1)}mm，"
+                    f"页面高度只有 {page_height}mm）——未写入任何新行，"
+                    f"页面空间最多还能安全放 {k} 件；需要更多请先调高页面"
+                )
+            targets.append(target_anchor_y)
+
+        created = []
+        for target_anchor_y in targets:
+            y_offset = target_anchor_y - source_anchor_y
+            for shape in source_shapes:
+                shape.Duplicate(0, y_offset)
+            created.append({"anchor_y": round(target_anchor_y, 1)})
+
+        return {
+            "source_row": source_row,
+            "row_height_mm": round(row_height, 1),
+            "clearance_mm": _ROW_CLEARANCE,
+            "shapes_per_row": len(source_shapes),
+            "new_rows_created": len(created),
+            "detail": created,
+        }
+
+    result = conn.safe_call(_duplicate)
+    if result["success"]:
+        data = result["result"]
+        return ToolResult.ok(
+            f"从第 {source_row} 行复制出 {data['new_rows_created']} 件新球衣"
+            f"（每件 {data['shapes_per_row']} 个形状），用 scan_jersey_rows 确认后"
+            "再用 set_jersey_players 填姓名/号码",
+            **data,
+        )
+    return ToolResult.fail(result.get("error", "复制球衣行失败"))

@@ -35,7 +35,7 @@ def setup_logging():
 
 
 def register_tools():
-    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates, engineering
+    from tools import document, shapes, text, colors, layers, export, preflight, data_merge, templates, engineering, vision, jersey
 
     mcp.add_tool(document.open_template)
     mcp.add_tool(document.create_document)
@@ -69,13 +69,21 @@ def register_tools():
     mcp.add_tool(shapes.scale_shape)
     mcp.add_tool(shapes.select_shapes)
     mcp.add_tool(shapes.powerclip)
+    mcp.add_tool(shapes.rename_shape)
+    mcp.add_tool(shapes.duplicate_shape)
+    mcp.add_tool(shapes.duplicate_shape_batch)
+    mcp.add_tool(shapes.duplicate_shapes)
+    mcp.add_tool(shapes.set_shape_locked)
+    mcp.add_tool(shapes.flip_shape)
 
     mcp.add_tool(text.set_text_content)
+    mcp.add_tool(text.get_text_content)
     mcp.add_tool(text.set_text_style)
     mcp.add_tool(text.fit_text_to_frame)
     mcp.add_tool(text.check_text_overflow)
     mcp.add_tool(text.convert_text_to_curves)
     mcp.add_tool(text.create_text_frame)
+    mcp.add_tool(text.create_artistic_text)
 
     mcp.add_tool(colors.set_fill_cmyk)
     mcp.add_tool(colors.set_fill_rgb)
@@ -119,6 +127,13 @@ def register_tools():
     mcp.add_tool(data_merge.batch_merge)
     mcp.add_tool(data_merge.generate_barcode)
     mcp.add_tool(data_merge.generate_qrcode)
+
+    mcp.add_tool(vision.view_canvas)
+
+    mcp.add_tool(jersey.scan_jersey_rows)
+    mcp.add_tool(jersey.set_jersey_player)
+    mcp.add_tool(jersey.set_jersey_players)
+    mcp.add_tool(jersey.duplicate_jersey_rows)
 
 
 def main():
