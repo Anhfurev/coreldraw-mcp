@@ -37,6 +37,13 @@
 - [2026-04-27] Sprint-3 (Phase 3 稳定化) — 任务队列管理 → 待开始
 - [2026-04-27] Sprint-3 (Phase 3 稳定化) — 多模板管理与版本控制 → 待开始
 
+## 已知约束
+
+> 格式：`[YYYY-MM-DD] 描述 — 原因`
+
+- [2026-09-05] Windows 机器可能完全没有真实 Python 安装（只有 Microsoft Store 别名占位符）；项目 `.venv` 若通过 OneDrive 在 Mac/Windows 间同步，会残留另一平台的 venv（如 `pyvenv.cfg` 指向 `/Users/.../homebrew` 路径），在当前平台完全不可用 — 换机器验证环境时必须先检查 `.venv/Scripts/python.exe`（Windows）是否真实存在且可执行，不能假设 `.venv` 存在就等于可用。
+- [2026-09-05] `view_canvas`（及 `export_preview_png` 等共用 ExportBitmap+Export fallback 模式的导出函数）在当前页面完全没有任何形状（0 个对象）时，`ExportBitmap` 和 fallback 的 `Export` 会先后失败，抛出 COM 通用异常 `(-2147352567, 'Exception occurred.', ...)` — 这是 CorelDRAW 导出滤镜本身在空白页面上的行为，不是代码 bug；页面上有至少一个形状后再截图即可。
+
 ## 已否决
 
 > 决定不做的需求。必须写原因，不允许静默删除。

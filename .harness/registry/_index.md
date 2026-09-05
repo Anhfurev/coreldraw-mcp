@@ -13,6 +13,7 @@
 
 ---
 
+[2026-09-05 16:35] VERIFY 端到端联调 MCP Server（真实 CorelDRAW + Windows 环境）：Windows 侧无真实 Python（.venv 是 OneDrive 同步残留的 macOS venv），重建 64-bit Python 3.11 venv 并安装依赖；启动 HTTP 模式 server，验证 81 个工具注册成功，实测 get_document_info/create_rectangle/view_canvas/set_fill_rgb/export_pdf 均对真实 CorelDRAW 生效；发现并修复 colors.py 中 4 处 `.Selection`（惰性绑定下是未调用的 bound method）→ `.Selection()` 的 bug，修复后验证选区填色路径正常 → 详见 backlog.md 已知约束区
 [2026-06-04 FIX] 新增英文 README，原中文版改为 README-CN，修正两处 License 行错写的 MIT → Apache 2.0
 
 [2026-06-04 FIX] 版权主体改为深圳市玄熵智能科技有限责任公司，新增 NOTICE 文件，格式与 My-Hermes-Desktop 一致
