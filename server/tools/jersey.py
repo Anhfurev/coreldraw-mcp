@@ -5,17 +5,24 @@
 不需要 Agent 先截图、再判断、再决定调哪个工具。实测一次 LLM 往返要 2~7 秒，
 而这里的一次修改在 1 秒以内。
 
-版式约定（来自现有批量文件，形状名称在每一行都重复，因此只能靠 Y 坐标区分行）：
-    REF_BACK_NAME   背面姓名（每行一个，用它来界定"一行"）
+版式约定（形状名称在每一行都重复，因此只能靠 Y 坐标区分行）：
+    REF_BACK_NAME   背面姓名
     REF_BACK_NUM    背面号码
     REF_FRONT_NUM   正面号码
     REF_FRONT_TEAM  正面队名
 
-本模块固化了三条踩过坑的规则（详见 .harness/product/backlog.md 已知约束）：
+"一行=一件球衣"由成对的面板矩形（正/背）界定，不依赖上面 4 个命名文字——2026-09-06
+改的，之前用 REF_BACK_NAME 是否存在来界定行，导致教练服/无号码热身服（没有姓名/号码，
+只有面板）完全无法被识别成一行。现在这 4 个命名文字对每一行都是可选的（0~4 个任意组合
+都行），只有"面板矩形凑成一对"才是真正必要条件。
+
+本模块固化了几条踩过坑的规则（详见 .harness/product/backlog.md 已知约束）：
     1. 改完文字内容后绝不调用 set_shape_size —— 会把新文字强行拉伸到旧文字的包围盒
     2. 重新居中的基准必须是"所在面板矩形的真实几何中心"，不能用文字自己修改前的中心
        （否则会把之前就已经跑偏的错误原样保留下去）
     3. 2 位以上号码用 char_spacing=-15 收紧，单字符重置为 0
+    4. 按 Y 坐标圈一行的形状时，不能用固定半径——用"离哪个行的锚点最近"分类，
+       固定半径在 resize_jersey_row 出现、行可以变得很大之后会失效
 """
 
 from typing import Optional
@@ -29,7 +36,6 @@ _NAME_BACK_NAME = "REF_BACK_NAME"
 _NAME_BACK_NUM = "REF_BACK_NUM"
 _NAME_FRONT_NUM = "REF_FRONT_NUM"
 _NAME_FRONT_TEAM = "REF_FRONT_TEAM"
-_ROW_ANCHOR = _NAME_BACK_NAME
 
 # 多位数号码的字间距（实测 -15 紧凑且自然，-30 过挤）
 _MULTI_CHAR_SPACING = -15.0
@@ -122,20 +128,51 @@ def _panel_center_x(panels: list[dict], text: dict) -> Optional[float]:
     return best["x"] + best["w"] / 2
 
 
+_PANEL_PAIR_Y_TOLERANCE = 20.0  # mm，нэг мөрийн нүүр/ар панель ижил Y дээр байна гэж үзэх зөвшөөрөгдөх ялгаа
+
+
+def _pair_panels(panels: list[dict]) -> list[dict]:
+    """Панелиудыг ойролцоо Y координатаар хос болгоно (нүүр+ар тал = 1 мөр). Текст (нэр/
+    дугаар/баг) байгаа эсэхээс огт хамаарахгүй — зөвхөн панелийн хосоор мөр гэж тодорхойлно,
+    учир нь зарим джерси (дасгалжуулагч, дугааргүй дулаацуулах хувцас) нэр/дугааргүй байж
+    болно (хэрэглэгчийн 2026-09-06 өгсөн тодорхойлолт), харин панель үргэлж байдаг."""
+    used = set()
+    pairs = []
+    for i, p in enumerate(panels):
+        if i in used:
+            continue
+        best_j, best_dist = None, None
+        for j, q in enumerate(panels):
+            if j == i or j in used:
+                continue
+            dist = abs(p["y"] - q["y"])
+            if dist <= _PANEL_PAIR_Y_TOLERANCE and (best_dist is None or dist < best_dist):
+                best_j, best_dist = j, dist
+        if best_j is None:
+            continue  # хослуулах панель олдсонгүй — хэвийн бус, алгасна
+        used.add(i)
+        used.add(best_j)
+        left, right = sorted([p, panels[best_j]], key=lambda s: s["x"])
+        pairs.append({"anchor_y": p["y"], "front_panel": left, "back_panel": right})
+    return sorted(pairs, key=lambda r: -r["anchor_y"])
+
+
 def _build_rows(texts: list[dict], panels: list[dict]) -> list[dict]:
-    """按 Y 坐标把文字形状归拢成"每件球衣一行"，行号 1 = 页面最上面那件"""
-    anchors = sorted(
-        [t for t in texts if t["name"] == _ROW_ANCHOR],
-        key=lambda t: t["y"],
-        reverse=True,
-    )
-    if not anchors:
+    """Панелийн хосоор "нэг джерси = нэг мөр" гэж тодорхойлно (текст—нэр/дугаар/баг—0-ээс 4
+    хүртэл ямар ч хослолоор байж болно, огт байхгүй байсан ч мөр гэж танигдана). Мөрийн
+    дугаар 1 = хуудасны хамгийн дээд мөр."""
+    pairs = _pair_panels(panels)
+    if not pairs:
         return []
 
-    rows = [{"row": i + 1, "anchor_y": a["y"], "shapes": {}} for i, a in enumerate(anchors)]
+    rows = [{"row": i + 1, "anchor_y": p["anchor_y"], "shapes": {}} for i, p in enumerate(pairs)]
+    row_anchors = [r["anchor_y"] for r in rows]
     for t in texts:
-        nearest = min(rows, key=lambda r: abs(r["anchor_y"] - t["y"]))
-        nearest["shapes"][t["name"]] = t
+        nearest_anchor = min(row_anchors, key=lambda a: abs(a - t["y"]))
+        for r in rows:
+            if r["anchor_y"] == nearest_anchor:
+                r["shapes"][t["name"]] = t
+                break
     return rows
 
 
@@ -293,7 +330,7 @@ def set_jersey_players(updates: list, dry_run: bool = False) -> ToolResult:
         texts, panels = _collect(doc)
         rows = _build_rows(texts, panels)
         if not rows:
-            raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
 
         # 先校验全部记录，通过后才开始写入 —— 避免"改到一半发现某条行号超范围/
         # 内容为空才报错"，此时前面几条已经真实写进了 CorelDRAW 却整体报失败、
@@ -397,17 +434,21 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
         texts, panels = _collect(doc)
         rows = _build_rows(texts, panels)
         if not rows:
-            raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
         if source_row < 1 or source_row > len(rows):
             raise ValueError(f"行号 {source_row} 超出范围，当前共 {len(rows)} 件球衣")
 
         source_anchor_y = rows[source_row - 1]["anchor_y"]
         all_anchors = [r["anchor_y"] for r in rows]
         source_shapes = _row_shapes_by_y(doc, source_anchor_y, all_anchors)
-        if len(source_shapes) < 8:
+        # Зөвхөн 2 панель (нүүр/ар) байгааг л шалгана — нэр/дугаар/баг текст 0-ээс 4 хүртэл
+        # ямар ч хослолоор байж болно (дасгалжуулагч/дугааргүй джерси байж болно тул
+        # тогтмол "хамгийн багадаа 8 хэлбэр" гэсэн хатуу шаардлага тавихгүй).
+        source_panel_count = sum(1 for s in source_shapes if s.SizeWidth > 200 and s.SizeHeight > 200)
+        if source_panel_count != 2:
             raise ValueError(
-                f"第 {source_row} 行只找到 {len(source_shapes)} 个形状，"
-                "明显少于一整行应有的数量，拒绝复制以免遗漏元素"
+                f"{source_row}-р мөрөнд яг 2 панель байх ёстой байтал {source_panel_count} олдлоо, "
+                "хуулбарлахаас татгалзав"
             )
 
         # 该行真实的底边/顶边相对锚点的偏移（不假设固定面板尺寸，直接量真实形状范围）
@@ -576,7 +617,7 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
         texts, panels = _collect(doc)
         all_rows = _build_rows(texts, panels)
         if not all_rows:
-            raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
         for row in rows:
             if row < 1 or row > len(all_rows):
                 raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
