@@ -664,9 +664,10 @@ if st.session_state.get("pending_roster"):
                 preview_df[c] = None
         preview_df = preview_df[preview_cols]
 
-        _BLUE_STYLE = {"color": "#1a73e8", "fontWeight": "600"}
+        _CENTER_STYLE = {"textAlign": "center"}
+        _BLUE_STYLE = {"color": "#1a73e8", "fontWeight": "600", "textAlign": "center"}
         gb = GridOptionsBuilder.from_dataframe(preview_df)
-        gb.configure_default_column(editable=True, resizable=True, minWidth=110)
+        gb.configure_default_column(editable=True, resizable=True, minWidth=110, cellStyle=_CENTER_STYLE)
         gb.configure_column("length_cm", cellStyle=_BLUE_STYLE)
         gb.configure_column("width_cm", cellStyle=_BLUE_STYLE)
         gb.configure_grid_options(domLayout="autoHeight", stopEditingWhenCellsLoseFocus=True)
