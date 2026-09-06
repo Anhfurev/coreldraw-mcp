@@ -106,38 +106,58 @@ def _save_correction(entry: dict) -> None:
 
 def _lookup_correction(
     height_cm: float, weight_kg: float, gender: str, sport: str, field: str,
-    height_tol: float = 1.5, weight_tol: float = 3.0,
+    height_tol: float = 3.0,
 ) -> float | None:
-    """Ойролцоо өндөр/жин/хүйс/спорттой өмнөх засваруудаас ХАМГИЙН ОЙРЫГ (зайлшгүй "хамгийн
-    сүүлд бичигдсэн"-ийг биш) сонгож олно. Анх бичсэн хувилбар "тохирсон сүүлчийнхийг" авдаг
-    байсан бөгөөд бодит өгөгдлөөр шалгахад алдаа гарсан — 169см/54кг асуухад яг тохирсон
-    (169,54)→114 байтал зөвхөн файлд хожуу бичигдсэн учраас хамаагүй хол (169,56.5)→116-г
-    буцаасан. Одоо өндөр+жингийн зайг тооцож хамгийн ойрыг сонгоно; тэнцүү зайтай бол
-    хожуу бичигдсэн нь давамгайлна (хэрэглэгчийн шинэ засвар)."""
-    best, best_dist = None, None
-    for idx, c in enumerate(_load_corrections()):
+    """Ойролцоо өндөртэй (±height_tol см) өмнөх засваруудаас утга гаргана. Зөвхөн яг ойрыг
+    (±1.5см/±3кг) л авдаг байсан хуучин хувилбар өгөгдөл цөөхөн үед хэт олон хоосон нүд
+    гаргадаг байсан (жишээ: 169см/50кг, 169см/62кг гэх мэт цэгүүд байхад завсрын
+    56кг асуувал юу ч олдохгүй байсан) — хэрэглэгч "урт гарахгүй байна" гэж шаардсан
+    тул одоо ижил өндрийн (±3см) бүх бодит цэгүүдийн ДУНД жингийн интерполяци хийнэ:
+      - зорилтот жингийн ДООД ба ДЭЭД талд бодит цэг олдвол хоёуланг нь шугаман
+        интерполяци хийнэ (жишээ 169см: 50кг→112, 62кг→118 гэдгээс 56кг-г ~115 гэж гаргана)
+      - зөвхөн нэг тал байвал (жин хэт бага/их) хамгийн ойр цэгийн утгыг шууд ашиглана
+        (нэг талын мэдээллээр хэтрүүлж таамаглах — яг биш ч хоосноос дээр, хэрэглэгч
+        буруу бол хүснэгтэд шууд засаад дахин хадгалж болно)
+      - тухайн өндрийн орчимд (±3см дотор) ЯМАР Ч бодит цэг байхгүй бол л None буцаана
+        (жишээ 190см — 164/169/170-аас хэт хол, тохирохгүй)."""
+    candidates = []
+    for c in _load_corrections():
         if c.get("gender") != gender or c.get("sport") != sport or field not in c:
             continue
         try:
             ch = float(c.get("height_cm", 0))
         except (TypeError, ValueError):
             continue
-        h_dist = abs(ch - height_cm)
-        if h_dist > height_tol:
+        if abs(ch - height_cm) > height_tol:
             continue
-        w_dist = 0.0
         cw = c.get("weight_kg")
-        if weight_kg and cw:
-            try:
-                w_dist = abs(float(cw) - weight_kg)
-                if w_dist > weight_tol:
-                    continue
-            except (TypeError, ValueError):
-                w_dist = 0.0
-        dist = h_dist + w_dist
-        if best_dist is None or dist <= best_dist:  # "<=" — тэнцвэл сүүлчийнх нь давамгайлна
-            best, best_dist = c[field], dist
-    return best
+        try:
+            cw = float(cw) if cw not in (None, "") else None
+        except (TypeError, ValueError):
+            cw = None
+        candidates.append((ch, cw, c[field]))
+
+    if not candidates:
+        return None
+    if not weight_kg:
+        return min(candidates, key=lambda t: abs(t[0] - height_cm))[2]
+
+    with_weight = [c for c in candidates if c[1] is not None]
+    if not with_weight:
+        return min(candidates, key=lambda t: abs(t[0] - height_cm))[2]
+
+    def _score(c):
+        return abs(c[0] - height_cm) + abs(c[1] - weight_kg)
+
+    below = [c for c in with_weight if c[1] <= weight_kg]
+    above = [c for c in with_weight if c[1] >= weight_kg]
+    if below and above:
+        b, a = min(below, key=_score), min(above, key=_score)
+        if b[1] == a[1]:
+            return b[2]
+        t = (weight_kg - b[1]) / (a[1] - b[1])
+        return b[2] + t * (a[2] - b[2])
+    return min(below or above, key=_score)[2]
 
 
 def _compute_jersey_width(height_cm: float, gender: str, sport: str, weight_kg: float = 0) -> float | None:
@@ -189,7 +209,10 @@ def _compute_jersey_length(
     gender, sport = (gender or "").strip().lower(), (sport or "").strip().lower()
     if height_cm <= 0:
         return None
-    return _lookup_correction(height_cm, weight_kg, gender, sport, "length_cm")
+    value = _lookup_correction(height_cm, weight_kg, gender, sport, "length_cm")
+    # Интерполяци хийсэн үр дүн 111/117 гэх мэт сондгой тоо гарч болзошгүй тул тэгш болгоно —
+    # яг бодит цэгтэй давхцвал аль хэдийн тэгш байгаа тул өөрчлөгдөхгүй.
+    return _round_to_even(value) if value is not None else None
 
 
 def _extract_roster_json(text: str) -> list[dict] | None:
