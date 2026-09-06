@@ -56,21 +56,52 @@ photo sent to you shows player data — a roster, size chart, handwritten list, 
 sheet with names, jersey numbers, and/or sizes — even if the caption is vague or empty. Do not
 treat it as a generic "describe this image" request.
 
-First answer in plain English: summarize what you found, and ALWAYS end by asking the user
-what fabric/material they want these jerseys made from (this has never been specified yet and
-is required before production).
+First answer in plain English: summarize what you found. If the photo/caption does not make
+clear which SPORT (volleyball or basketball) and which GENDER (male or female) this roster is
+for, you MUST ask the user for both — do not guess, since jersey width/length are computed
+differently per sport and gender. Also ALWAYS end by asking what fabric/material they want
+these jerseys made from (never specified yet, required before production).
 
 Then, ALWAYS output a fenced JSON code block — even if you truly find no player data at all
 (in that case output an empty array) — with this exact shape, one object per player/row you
 can see in the photo:
 
 ```json
-[{"name": "...", "number": "...", "size": "..."}]
+[{"name": "...", "number": "...", "height_cm": "...", "weight_kg": "...", "chest_cm": "..."}]
 ```
 
-Leave a field as an empty string "" if it is not visible. Never skip this block — a human
+height_cm/weight_kg/chest_cm are numbers as plain strings (e.g. "170"), not text like "170cm".
+Leave any field as an empty string "" if it is not visible. Never skip this block — a human
 will review it in an editable table before anything is written to production, specifically
 to catch cases where you misread a name or number."""
+
+
+def _compute_jersey_width(height_cm: float, gender: str, sport: str) -> float | None:
+    """Тоглогчийн өндрөөс жинсэн (front/back) өргөнийг тооцно — зөвхөн хэрэглэгчийн өгсөн
+    жишээнүүдээр 100% тохирсон томьёо: урт тооцох дүрэм (энэ функцэд байхгүй, доор тайлбарласан
+    шалтгаанаар) хараахан баталгаажаагүй тул зөвхөн ӨРГӨНИЙГ тооцно, урт нь хоосон үлдэнэ —
+    хэрэглэгч энэ тал дээр тодорхой дүрэм өгөөгүй (зөвхөн 1-2 жишээ цэг байсан, тэдгээрээр
+    ерөнхий томьёо гаргах боломжгүй, буруу таамаглаж материал үрэхээс зайлсхийв).
+        Волейбол эмэгтэй: 63 + 0.5×(өндөр-160)   — 160→63, 165→65, 170→68 (хэрэглэгчийн жишээтэй тохирно)
+        Волейбол эрэгтэй: 71 + 0.4×(өндөр-170)   — 170→71, 172→72, 175→73, 180→75 (яг тохирно)
+        Баскетбол эрэгтэй: волейбол эрэгтэйн утга + 2 — 175→75, 180→77 (хэрэглэгчийн жишээтэй тохирно)
+        Баскетбол эмэгтэй: хэрэглэгч огт дурдаагүй тул тооцохгүй."""
+    gender, sport = (gender or "").strip().lower(), (sport or "").strip().lower()
+    if height_cm <= 0:
+        return None
+    if sport == "volleyball" and gender == "female":
+        return round(63 + 0.5 * (height_cm - 160))
+    if sport == "volleyball" and gender == "male":
+        return round(71 + 0.4 * (height_cm - 170))
+    if sport == "basketball" and gender == "male":
+        return round(71 + 0.4 * (height_cm - 170) + 2)
+    return None
+
+
+def _compute_jersey_length_from_chest(chest_cm: float) -> float | None:
+    """Цээжний хэмжээгээр урт тооцох цорын ганц тодорхой дүрэм (хэрэглэгч өгсөн): урт = цээж + 20.
+    Өндөр/жингээр урт тооцох дүрэм хараахан батлагдаагүй тул зөвхөн ЭНЭ тохиолдолд л тооцно."""
+    return round(chest_cm + 20) if chest_cm > 0 else None
 
 
 def _extract_roster_json(text: str) -> list[dict] | None:
@@ -431,10 +462,35 @@ if st.session_state.get("pending_roster"):
     st.divider()
     st.subheader("📋 Зурганаас уншсан өгөгдөл")
     st.caption(
-        "AI-ийн уншсан нэр/дугаар — эндээс шалгаад буруу бол засаад доороос "
-        "«Урьдчилан харах» дараад зөв бол «CorelDRAW-д бичих» дарна уу. Only name/number "
-        "get written right now — size is shown for your own reference only."
+        "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол засаарай. "
+        "Одоогоор зөвхөн нэр/дугаарыг л CorelDRAW руу бичнэ — өргөн/урт зөвхөн лавлагаанд."
     )
+
+    col_sport, col_gender, col_calc = st.columns([1, 1, 1])
+    with col_sport:
+        sport = st.selectbox("Спорт", ["", "volleyball", "basketball"], key="roster_sport")
+    with col_gender:
+        gender = st.selectbox("Хүйс", ["", "male", "female"], key="roster_gender")
+    with col_calc:
+        st.write("")
+        if st.button("🧮 Хэмжээ тооцоолох", use_container_width=True):
+            for r in st.session_state.pending_roster:
+                try:
+                    h = float(r.get("height_cm") or 0)
+                except ValueError:
+                    h = 0
+                try:
+                    c = float(r.get("chest_cm") or 0)
+                except ValueError:
+                    c = 0
+                w = _compute_jersey_width(h, gender, sport)
+                r["width_cm"] = w if w is not None else ""
+                length_from_chest = _compute_jersey_length_from_chest(c)
+                r["length_cm"] = length_from_chest if length_from_chest is not None else ""
+            st.rerun()
+    if not sport or not gender:
+        st.caption("⚠️ Спорт/хүйс сонгоогүй тул өргөн тооцохгүй (буруу таамаглахаас зайлсхийв).")
+
     edited_roster = st.data_editor(
         st.session_state.pending_roster,
         num_rows="dynamic",
