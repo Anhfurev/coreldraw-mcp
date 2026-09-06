@@ -51,12 +51,18 @@ USER_AVATAR = "😎"
 # Зурган дээрх өгөгдлийг заавал JSON блок болгож гаргуулна — AI буруу уншсан нэр/дугаарыг
 # хэрэглэгч энд шалгаж засаад, зөвхөн засварласны дараа л CorelDRAW руу бичнэ ("material
 # бэлдэхээс өмнө материал дэмий үрэхгүй байх" гэсэн зорилготой, хэрэглэгчийн шаардсанаар).
-_EXTRACTION_PROMPT = """You are reading a photo related to sports jersey production (a roster,
-size chart, or handwritten list of players).
+_EXTRACTION_PROMPT = """This app is exclusively for sports jersey production. ALWAYS assume any
+photo sent to you shows player data — a roster, size chart, handwritten list, or measurement
+sheet with names, jersey numbers, and/or sizes — even if the caption is vague or empty. Do not
+treat it as a generic "describe this image" request.
 
-First answer in plain English. Then, ALWAYS output a fenced JSON code block — even if the
-photo has nothing to do with a roster (in that case output an empty array) — with this exact
-shape, one object per player/row you can see in the photo:
+First answer in plain English: summarize what you found, and ALWAYS end by asking the user
+what fabric/material they want these jerseys made from (this has never been specified yet and
+is required before production).
+
+Then, ALWAYS output a fenced JSON code block — even if you truly find no player data at all
+(in that case output an empty array) — with this exact shape, one object per player/row you
+can see in the photo:
 
 ```json
 [{"name": "...", "number": "...", "size": "..."}]
@@ -279,7 +285,7 @@ submission = st.chat_input(
 )
 
 if submission:
-    prompt_text = submission.text or "Read this image and describe what you see."
+    prompt_text = submission.text or "Extract the player roster data (names/numbers/sizes) from this photo."
     uploaded_images = []  # [(mime, base64_str), ...]
     for f in submission.files:
         mime = f.type or "image/png"
