@@ -146,9 +146,9 @@ def _compute_jersey_width(height_cm: float, gender: str, sport: str, weight_kg: 
     шалтгаанаар) хараахан баталгаажаагүй тул зөвхөн ӨРГӨНИЙГ тооцно, урт нь хоосон үлдэнэ —
     хэрэглэгч энэ тал дээр тодорхой дүрэм өгөөгүй (зөвхөн 1-2 жишээ цэг байсан, тэдгээрээр
     ерөнхий томьёо гаргах боломжгүй, буруу таамаглаж материал үрэхээс зайлсхийв).
-    Санамж: "үр дүн тэгш тоо байх ёстой" дүрэм ЗӨВХӨН урт (length)-д хамаарна, өргөнд (width)
-    хамаарахгүй — хэрэглэгчийн баталгаажуулсан өргөний утгууд дунд 63/71/73/75/77 гэх мэт
-    сондгой тоо хэвийн байгаа, тул энд _round_to_even ашиглаагүй нь бодлогоор зөв.
+    Санамж: "урт (length) заавал тэгш тоо байх ёстой" дүрэм ЗӨВХӨН урт-д хамаарна, өргөнд
+    (width) хамаарахгүй — хэрэглэгчийн баталгаажуулсан өргөний утгууд дунд 63/71/73/75/77
+    гэх мэт сондгой тоо хэвийн байгаа.
         Волейбол эмэгтэй: 63 + 0.5×(өндөр-160)   — 160→63, 165→65, 170→68 (хэрэглэгчийн жишээтэй тохирно)
         Волейбол эрэгтэй: 71 + 0.4×(өндөр-170)   — 170→71, 172→72, 175→73, 180→75 (яг тохирно)
         Баскетбол эрэгтэй: волейбол эрэгтэйн утга + 2 — 175→75, 180→77 (хэрэглэгчийн жишээтэй тохирно)
@@ -177,19 +177,19 @@ def _round_to_even(x: float) -> int:
 
 
 def _compute_jersey_length(
-    height_cm: float, weight_kg: float, chest_cm: float, gender: str, sport: str,
+    height_cm: float, weight_kg: float, gender: str, sport: str,
 ) -> float | None:
-    """Урт тооцно. Эхлээд өмнөх засварын жагсаалтаас ойролцоо өндөр/жинтэй тохирол хайна
-    (баталгаажсан бодит утга томьёогоор илүү найдвартай); олдохгүй бол цээжний хэмжээгээр
-    (урт=цээж+20) тооцно — өндөр/жингээр урт тооцох ерөнхий томьёо хараахан батлагдаагүй
-    тул зөвхөн эдгээр хоёр тохиолдолд л утга буцаана, бусад тохиолдолд None (хоосон,
-    хэрэглэгч гараар бөглөнө)."""
+    """Урт тооцно. ЗӨВХӨН өмнөх засварын жагсаалтаас ойролцоо өндөр/жинтэй бодит тохирол
+    олдвол утга буцаана; олдохгүй бол ХООСОН (None) — цээжээр автоматаар "цээж+20" гэж
+    тооцохгүй болгосон (энэ функцийн өмнөх хувилбар үүнийг хийдэг байсан бөгөөд хэрэглэгч
+    үүнийг бодит алдаа гэж заасан: жишээ нь 164см/66кг — сорилтын мужид (169-170см) байхгүй
+    тул засварын жагсаалтад тохирол олдоогүй, гэтэл функц чимээгүйгээр цээж+20 руу шилжиж
+    буруу тоо (жишээ нь 100) гаргасан). Одоо цээжийг зөвхөн хэрэглэгч өөрөө "цээж ер бусын
+    том" гэж үзээд ХҮСНЭГТЭД ГАРААР бичихэд л ашиглана — автоматаар таамаглахгүй."""
     gender, sport = (gender or "").strip().lower(), (sport or "").strip().lower()
-    if height_cm > 0:
-        override = _lookup_correction(height_cm, weight_kg, gender, sport, "length_cm")
-        if override is not None:
-            return override
-    return _round_to_even(chest_cm + 20) if chest_cm > 0 else None
+    if height_cm <= 0:
+        return None
+    return _lookup_correction(height_cm, weight_kg, gender, sport, "length_cm")
 
 
 def _extract_roster_json(text: str) -> list[dict] | None:
@@ -578,10 +578,10 @@ if st.session_state.get("pending_roster"):
                     return 0
 
             for r in st.session_state.pending_roster:
-                h, wt, c = _num(r.get("height_cm")), _num(r.get("weight_kg")), _num(r.get("chest_cm"))
+                h, wt = _num(r.get("height_cm")), _num(r.get("weight_kg"))
                 w = _compute_jersey_width(h, gender, sport, weight_kg=wt)
                 r["width_cm"] = w if w is not None else ""
-                length = _compute_jersey_length(h, wt, c, gender, sport)
+                length = _compute_jersey_length(h, wt, gender, sport)
                 r["length_cm"] = length if length is not None else ""
             st.rerun()
     if not sport or not gender:
@@ -627,8 +627,13 @@ if st.session_state.get("pending_roster"):
                 entry["width_cm"] = float(edited_w)
                 changed = True
             edited_l = r.get("length_cm")
-            if edited_l not in (None, "") and edited_l != _compute_jersey_length(h, wt, c, gender, sport):
-                entry["length_cm"] = float(edited_l)
+            if edited_l not in (None, "") and edited_l != _compute_jersey_length(h, wt, gender, sport):
+                l_val = float(edited_l)
+                even_val = _round_to_even(l_val)
+                if even_val != l_val:
+                    st.warning(f"Урт {l_val} сондгой тоо байсан тул {even_val} болгож хадгаллаа "
+                               f"(урт заавал тэгш тоо байх дүрмийн дагуу).")
+                entry["length_cm"] = even_val
                 changed = True
             if changed:
                 _save_correction(entry)
