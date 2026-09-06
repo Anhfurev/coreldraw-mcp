@@ -130,6 +130,50 @@ def _collect(doc) -> tuple[list[dict], list[dict]]:
     return texts, panels
 
 
+def _crosshair_center_x(side_shapes) -> Optional[float]:
+    """Тухайн талын 十字 тэмдгийг (crosshair, Type != 6) олж, түүний хэвтээ төв X-ийг
+    буцаана. Олдохгүй бол None.
+
+    2026-09-06 нэмсэн: crosshair бол хэвлэлийн БОДИТ зэрэгцүүлэх тэмдэглэгээ (хэрэглэгч
+    хэвлэхдээ үүгээр зэрэгцүүлдэг), панелийн математик геометрийн төвтэй ЯГ ТААРАХГҮЙ
+    байдаг нь бодит хэмжилтээр батлагдсан (жишээ: нэг мөрөнд ар талын crosshair
+    панелийн төвөөс ~30mm зөрүүтэй байсан бол текст өөрөө панелийн төвд төвлөрсөн үед
+    crosshair-тай ~130mm зөрүүтэй харагдсан). Иймд текстийг crosshair байвал ТҮҮНТЭЙ
+    нь зэрэгцүүлэх ёстой, зөвхөн панелийн төвтэй биш — эс тэгвэл хэрэглэгчид "төв биш
+    шиг" харагдана (яг энэ гомдлыг хэрэглэгч зурган дээр үзүүлсэн)."""
+    crosshair = next((s for s in side_shapes if s.Type != 6), None)
+    if crosshair is None:
+        return None
+    return crosshair.PositionX + crosshair.SizeWidth / 2
+
+
+def _row_reference_centers(doc, row_obj: dict, all_anchors: list[float]) -> dict:
+    """Нэг мөрийн 4 нэрлэгдсэн текст тус бүрд ашиглах зэрэгцүүлэх X-ийг (crosshair
+    байвал түүний төв, үгүй бол панелийн төв) урьдчилан тооцоод буцаана —
+    {key: center_x}. `_apply_one`-д дамжуулж ашиглана."""
+    anchor_y = row_obj["anchor_y"]
+    row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
+    row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+    if len(row_panels) != 2:
+        return {}
+    front_panel, back_panel = sorted(row_panels, key=lambda s: s.PositionX)
+    midpoint_x = (front_panel.PositionX + front_panel.SizeWidth + back_panel.PositionX) / 2
+    front_others = [s for s in row_shapes
+                    if s.PositionX < midpoint_x and not (s.SizeWidth > 200 and s.SizeHeight > 200)]
+    back_others = [s for s in row_shapes
+                   if s.PositionX >= midpoint_x and not (s.SizeWidth > 200 and s.SizeHeight > 200)]
+    front_ref = _crosshair_center_x(front_others)
+    if front_ref is None:
+        front_ref = front_panel.PositionX + front_panel.SizeWidth / 2
+    back_ref = _crosshair_center_x(back_others)
+    if back_ref is None:
+        back_ref = back_panel.PositionX + back_panel.SizeWidth / 2
+    return {
+        _NAME_FRONT_TEAM: front_ref, _NAME_FRONT_NUM: front_ref,
+        _NAME_BACK_NAME: back_ref, _NAME_BACK_NUM: back_ref,
+    }
+
+
 def _panel_center_x(panels: list[dict], text: dict) -> Optional[float]:
     """找到装着这个文字的面板，返回面板的真实几何中心 X。
 
@@ -200,7 +244,7 @@ def _build_rows(texts: list[dict], panels: list[dict]) -> list[dict]:
     return rows
 
 
-def _row_summary(row: dict, panels: list[dict]) -> dict:
+def _row_summary(row: dict, panels: list[dict], center_for: Optional[dict] = None) -> dict:
     shapes = row["shapes"]
 
     def _content(key: str) -> str:
@@ -208,11 +252,16 @@ def _row_summary(row: dict, panels: list[dict]) -> dict:
         return _read_text(t["shape"]) if t else ""
 
     def _offset(key: str) -> Optional[float]:
-        """文字中心相对面板真实中心的偏移量（mm），用来免截图核查是否跑偏"""
+        """文字中心相对"真正应该对齐的点"（十字标记的中心，没有就退回面板几何中心）
+        的偏移量（mm），用来免截图核查是否跑偏 —— 2026-09-06 改成优先用十字标记，
+        因为实测十字标记本身就不在面板几何中心上，只按面板中心判断会把本来对齐
+        十字标记的文字误判成"跑偏了"。"""
         t = shapes.get(key)
         if not t:
             return None
-        center = _panel_center_x(panels, t)
+        center = (center_for or {}).get(key)
+        if center is None:
+            center = _panel_center_x(panels, t)
         if center is None:
             return None
         return round(t["x"] + t["w"] / 2 - center, 2)
@@ -248,10 +297,11 @@ def scan_jersey_rows() -> ToolResult:
         doc.Unit = _CDR_MILLIMETER
         texts, panels = _collect(doc)
         rows = _build_rows(texts, panels)
+        all_anchors = [r["anchor_y"] for r in rows]
         return {
             "total": len(rows),
             "panels_found": len(panels),
-            "rows": [_row_summary(r, panels) for r in rows],
+            "rows": [_row_summary(r, panels, _row_reference_centers(doc, r, all_anchors)) for r in rows],
         }
 
     result = conn.safe_call(_scan)
@@ -261,8 +311,15 @@ def scan_jersey_rows() -> ToolResult:
     return ToolResult.fail(result.get("error", "扫描球衣失败"))
 
 
-def _apply_one(row_obj: dict, panels: list[dict], name: str, number: str, dry_run: bool) -> list[dict]:
-    """对一行执行姓名/号码修改（必须在 COM 线程内调用）"""
+def _apply_one(
+    row_obj: dict, panels: list[dict], name: str, number: str, dry_run: bool,
+    center_for: Optional[dict] = None,
+) -> list[dict]:
+    """对一行执行姓名/号码修改（必须在 COM 线程内调用）。
+
+    center_for: {key: center_x} — байвал (十字 тэмдэгт тулгуурлан урьдчилан тооцсон
+    зэрэгцүүлэх X) үүнийг л ашиглана; байхгүй бол хуучин `_panel_center_x` fallback
+    (crosshair мэдээлэлгүй үед ч ажиллах чадвартай хэвээр байлгах зорилготой)."""
     jobs = []
     if name:
         jobs.append((_NAME_BACK_NAME, name))
@@ -279,7 +336,9 @@ def _apply_one(row_obj: dict, panels: list[dict], name: str, number: str, dry_ru
 
         shape = t["shape"]
         old = _read_text(shape)
-        center = _panel_center_x(panels, t)
+        center = (center_for or {}).get(key)
+        if center is None:
+            center = _panel_center_x(panels, t)
 
         if dry_run:
             changes.append({
@@ -384,8 +443,13 @@ def set_jersey_players(updates: list, dry_run: bool = False) -> ToolResult:
                 raise ValueError(f"第 {row} 项既没有 name 也没有 number，未写入任何内容")
             parsed.append((row, name, number))
 
+        all_anchors = [r["anchor_y"] for r in rows]
+
         results = [
-            {"row": row, "changes": _apply_one(rows[row - 1], panels, name, number, dry_run)}
+            {"row": row, "changes": _apply_one(
+                rows[row - 1], panels, name, number, dry_run,
+                center_for=_row_reference_centers(doc, rows[row - 1], all_anchors),
+            )}
             for row, name, number in parsed
         ]
         return {"dry_run": dry_run, "total_rows": len(rows), "results": results}
@@ -634,19 +698,18 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
             for s in back_others:
                 s.PositionX = s.PositionX + back_shift_x
 
-        # 4) 4 үндсэн нэрлэгдсэн текст (жижиг шошго/十字 тэмдэг биш)-ийг зөвхөн ХЭВТЭЭ дахин
-        #    төвлөрүүлнэ (шинэ панелийн жинхэнэ геометрийн төвтэй тааруулна), хэмжээг нь
-        #    огт хөндөхгүй.
+        # 4) 4 үндсэн нэрлэгдсэн текстийг зөвхөн ХЭВТЭЭ дахин төвлөрүүлнэ, хэмжээг нь
+        #    огт хөндөхгүй. Зэрэгцүүлэх тэнхлэг: 十字 тэмдэг байвал ТҮҮНИЙ төв X
+        #    (хэвлэлийн бодит зэрэгцүүлэх тэмдэглэгээ учир), үгүй бол панелийн
+        #    геометрийн төв (доор тайлбарласан).
         def _recenter(shapes_list, panel):
-            panel_dict = {"x": panel.PositionX, "y": panel.PositionY,
-                          "w": panel.SizeWidth, "h": panel.SizeHeight}
+            ref_center = _crosshair_center_x(shapes_list)
+            if ref_center is None:
+                ref_center = panel.PositionX + panel.SizeWidth / 2
             for s in shapes_list:
                 if s.Type != 6 or _is_material_label(s.SizeWidth, s.SizeHeight):
                     continue  # шошго биш, жинхэнэ 4 текстийг л төвлөрүүлнэ
-                text_dict = {"x": s.PositionX, "y": s.PositionY, "w": s.SizeWidth, "h": s.SizeHeight}
-                center = _panel_center_x([panel_dict], text_dict)
-                if center is not None:
-                    s.PositionX = center - s.SizeWidth / 2
+                s.PositionX = ref_center - s.SizeWidth / 2
 
         _recenter(front_others, front_panel)
         _recenter(back_others, back_panel)
@@ -836,15 +899,22 @@ def recenter_jersey_texts(rows: Optional[list] = None) -> ToolResult:
             if row < 1 or row > len(all_rows):
                 raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
 
+        all_anchors = [r["anchor_y"] for r in all_rows]
+
         results = []
         for row in targets:
             row_obj = all_rows[row - 1]
+            centers = _row_reference_centers(doc, row_obj, all_anchors)
             fixed = []
+            if not centers:
+                results.append({"row": row, "fixed": [], "skipped": "2 панель олдсонгүй"})
+                continue
+
             for key, t in row_obj["shapes"].items():
                 shape = t["shape"]
-                center = _panel_center_x(panels, t)
+                center = centers.get(key)
                 if center is None:
-                    fixed.append({"shape": key, "skipped": "тохирох панель олдсонгүй"})
+                    fixed.append({"shape": key, "skipped": "зэрэгцүүлэх цэг олдсонгүй"})
                     continue
                 shrunk = None
                 if key == _NAME_BACK_NAME and shape.SizeWidth > _MAX_NAME_WIDTH:
