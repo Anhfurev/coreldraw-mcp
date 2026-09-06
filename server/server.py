@@ -134,6 +134,7 @@ def register_tools():
     mcp.add_tool(jersey.set_jersey_player)
     mcp.add_tool(jersey.set_jersey_players)
     mcp.add_tool(jersey.duplicate_jersey_rows)
+    mcp.add_tool(jersey.set_jersey_material)
 
 
 def main():

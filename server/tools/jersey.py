@@ -461,3 +461,66 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
             **data,
         )
     return ToolResult.fail(result.get("error", "复制球衣行失败"))
+
+
+def set_jersey_material(rows: list, material: str) -> ToolResult:
+    """把面料/材质代码写进指定几行球衣的面料标签（每行正/背各一个小标签，即之前发现的
+    那个误继承了 REF_BACK_NAME 名字的 30x10mm 小文字，例如之前的示例"3016"）。
+    按 Y 坐标 + 高度 < 20mm 识别这些标签（同 _collect 排除小标签的判断依据一致，反过来
+    专门找它们），不依赖名称——名称本身不可靠，见模块顶部说明。
+
+    rows: 行号列表（1 = 页面最上面那件），对这些行的全部面料标签统一写入同一个 material。
+    找不到面料标签的行会在返回结果里标记 skipped，不会报错中断其它行。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+    if not rows:
+        return ToolResult.fail("rows 为空")
+    if not material:
+        return ToolResult.fail("material 为空")
+
+    def _apply():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("没有打开的文档")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        all_rows = _build_rows(texts, panels)
+        if not all_rows:
+            raise ValueError("当前页面没有找到球衣（缺少 REF_BACK_NAME 形状）")
+        for row in rows:
+            if row < 1 or row > len(all_rows):
+                raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
+
+        results = []
+        for row in rows:
+            anchor_y = all_rows[row - 1]["anchor_y"]
+            row_shapes = _row_shapes_by_y(doc, anchor_y)
+            labels = []
+            for s in row_shapes:
+                try:
+                    h, shape_type = s.SizeHeight, s.Type
+                except Exception:
+                    continue
+                # Type == 6 бол артистик текст (CLAUDE.md-д баримтжуулсан жинхэнэ код, 3 биш —
+                # 3 бол шугам/муруй). Зөвхөн өндрөөр шүүвэл өндөр 0 байдаг загалмай
+                # тэмдэглэгээний шугамууд ч санамсаргүй орж ирж болзошгүй тул Type-ийг зайлшгүй шалгана.
+                if shape_type != 6 or h >= _MIN_TEXT_HEIGHT:
+                    continue  # текст биш, эсвэл 4 үндсэн текстийн нэг (~30x10mm биш)
+                labels.append(s)
+            written = 0
+            for s in labels:
+                try:
+                    _write_text(s, material)
+                    written += 1
+                except Exception:
+                    continue
+            results.append({"row": row, "labels_updated": written})
+        return {"material": material, "results": results}
+
+    result = conn.safe_call(_apply)
+    if result["success"]:
+        data = result["result"]
+        total = sum(r["labels_updated"] for r in data["results"])
+        return ToolResult.ok(f"{len(rows)} мөрөнд «{material}» гэж {total} шошго бичив", **data)
+    return ToolResult.fail(result.get("error", "面料标签写入失败"))

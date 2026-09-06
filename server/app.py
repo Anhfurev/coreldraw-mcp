@@ -20,7 +20,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent.runner import SignageAgent
-from tools.jersey import duplicate_jersey_rows, scan_jersey_rows, set_jersey_players
+from tools.jersey import duplicate_jersey_rows, scan_jersey_rows, set_jersey_material, set_jersey_players
 
 
 st.set_page_config(page_title="CorelChamp", page_icon="🏆", layout="wide")
@@ -108,27 +108,35 @@ def _lookup_correction(
     height_cm: float, weight_kg: float, gender: str, sport: str, field: str,
     height_tol: float = 1.5, weight_tol: float = 3.0,
 ) -> float | None:
-    """Ойролцоо өндөр/жин/хүйс/спорттой өмнөх засварыг хайна (хамгийн сүүлд бичигдсэнийг
-    ашиглана — хэрэглэгч дараа дахин засвал шинэ утга нь давамгайлна). Тохирохгүй бол None,
-    дуудсан тал томьёо руу шилжинэ."""
-    best = None
-    for c in _load_corrections():
+    """Ойролцоо өндөр/жин/хүйс/спорттой өмнөх засваруудаас ХАМГИЙН ОЙРЫГ (зайлшгүй "хамгийн
+    сүүлд бичигдсэн"-ийг биш) сонгож олно. Анх бичсэн хувилбар "тохирсон сүүлчийнхийг" авдаг
+    байсан бөгөөд бодит өгөгдлөөр шалгахад алдаа гарсан — 169см/54кг асуухад яг тохирсон
+    (169,54)→114 байтал зөвхөн файлд хожуу бичигдсэн учраас хамаагүй хол (169,56.5)→116-г
+    буцаасан. Одоо өндөр+жингийн зайг тооцож хамгийн ойрыг сонгоно; тэнцүү зайтай бол
+    хожуу бичигдсэн нь давамгайлна (хэрэглэгчийн шинэ засвар)."""
+    best, best_dist = None, None
+    for idx, c in enumerate(_load_corrections()):
         if c.get("gender") != gender or c.get("sport") != sport or field not in c:
             continue
         try:
             ch = float(c.get("height_cm", 0))
         except (TypeError, ValueError):
             continue
-        if abs(ch - height_cm) > height_tol:
+        h_dist = abs(ch - height_cm)
+        if h_dist > height_tol:
             continue
+        w_dist = 0.0
         cw = c.get("weight_kg")
         if weight_kg and cw:
             try:
-                if abs(float(cw) - weight_kg) > weight_tol:
+                w_dist = abs(float(cw) - weight_kg)
+                if w_dist > weight_tol:
                     continue
             except (TypeError, ValueError):
-                pass
-        best = c[field]
+                w_dist = 0.0
+        dist = h_dist + w_dist
+        if best_dist is None or dist <= best_dist:  # "<=" — тэнцвэл сүүлчийнх нь давамгайлна
+            best, best_dist = c[field], dist
     return best
 
 
@@ -525,6 +533,9 @@ if submission:
             st.caption(f"Total {final_event['turns']} turns, {final_event['tool_calls']} tool calls")
             st.session_state.messages.append({"role": "assistant", "content": display_text or text})
             if roster:
+                for r in roster:
+                    r.setdefault("width_cm", "")
+                    r.setdefault("length_cm", "")
                 st.session_state.pending_roster = roster
         elif final_event:
             msg = f"❌ {final_event['message']}"
@@ -549,12 +560,14 @@ if st.session_state.get("pending_roster"):
 
     _GENDER_TAGS = {"": "", "эрэгтэй": "male", "эмэгтэй": "female"}
 
-    col_sport, col_gender, col_calc = st.columns([1, 1, 1])
+    col_sport, col_gender, col_material, col_calc = st.columns([1, 1, 1.4, 1])
     with col_sport:
         sport = st.selectbox("Спорт", ["", "volleyball", "basketball"], key="roster_sport")
     with col_gender:
         gender_tag = st.selectbox("Хүйс", list(_GENDER_TAGS.keys()), key="roster_gender")
         gender = _GENDER_TAGS[gender_tag]
+    with col_material:
+        material = st.text_input("Материал/Fabric", key="roster_material", placeholder="жишээ нь: 3016")
     with col_calc:
         st.write("")
         if st.button("🧮 Хэмжээ тооцоолох", use_container_width=True):
@@ -573,12 +586,15 @@ if st.session_state.get("pending_roster"):
             st.rerun()
     if not sport or not gender:
         st.caption("⚠️ Спорт/хүйс сонгоогүй тул өргөн тооцохгүй (буруу таамаглахаас зайлсхийв).")
+    if not material:
+        st.caption("⚠️ Материал/fabric оруулаагүй байна — «Start Jersey» дарахад заавал хэрэгтэй.")
 
     edited_roster = st.data_editor(
         st.session_state.pending_roster,
         num_rows="dynamic",
         use_container_width=True,
         key="roster_editor",
+        column_order=["name", "number", "width_cm", "length_cm", "height_cm", "weight_kg", "chest_cm"],
     )
 
     def _roster_names_numbers() -> list[dict]:
@@ -633,6 +649,8 @@ if st.session_state.get("pending_roster"):
             people = _roster_names_numbers()
             if not people:
                 st.error("Хүснэгт хоосон байна — нэр эсвэл дугаар оруулаагүй байна.")
+            elif not material:
+                st.error("Материал/fabric оруулаагүй байна — дээрх талбарт бичээд дахин дарна уу.")
             else:
                 # 1-р мөрийг загвар болгож яг хэдэн хүн байгаагаар нь шинэ мөр үүсгэнэ,
                 # дараа нь яг тэр шинэ мөрүүдэд нэр/дугаарыг бичнэ — "эхлэх мөрийн дугаар"
@@ -643,16 +661,20 @@ if st.session_state.get("pending_roster"):
                 if not dup_result.success:
                     st.error(dup_result.error)
                 else:
+                    new_rows = list(range(total_before + 1, total_before + 1 + len(people)))
                     fill_updates = [
-                        {"row": total_before + 1 + i, **p} for i, p in enumerate(people)
+                        {"row": r, **p} for r, p in zip(new_rows, people)
                     ]
                     fill_result = set_jersey_players(fill_updates, dry_run=False)
-                    if fill_result.success:
+                    if not fill_result.success:
+                        st.error(fill_result.error)
+                    else:
+                        mat_result = set_jersey_material(new_rows, material)
+                        if not mat_result.success:
+                            st.warning(f"Нэр/дугаар бичигдсэн ч материалын шошго амжилтгүй: {mat_result.error}")
                         st.success(f"{len(people)} джерси үүсгэж, мэдээллийг бичлээ!")
                         del st.session_state.pending_roster
                         st.rerun()
-                    else:
-                        st.error(fill_result.error)
     with col3:
         if st.button("❌ Цуцлах", use_container_width=True):
             del st.session_state.pending_roster
