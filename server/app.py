@@ -543,7 +543,7 @@ if st.session_state.get("pending_roster"):
     st.subheader("📋 Зурганаас уншсан өгөгдөл")
     st.caption(
         "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол засаарай. "
-        "«Джерси эхлүүлэх» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
+        "«Start Jersey» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
         "бичнэ (өргөн/урт зөвхөн лавлагаанд, CorelDRAW руу бичихгүй)."
     )
 
@@ -626,7 +626,7 @@ if st.session_state.get("pending_roster"):
             st.info(f"{len(people)} шинэ джерси үүсгэнэ:")
             st.json(people)
     with col2:
-        if st.button("🏐 Джерси эхлүүлэх", type="primary", use_container_width=True):
+        if st.button("🏐 Start Jersey", type="primary", use_container_width=True):
             n_saved = _save_edited_size_corrections()
             if n_saved:
                 st.toast(f"📏 {n_saved} хэмжээний засвар хадгалагдлаа — дараа ижил хүн ирвэл ашиглана")
