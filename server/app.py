@@ -76,7 +76,63 @@ will review it in an editable table before anything is written to production, sp
 to catch cases where you misread a name or number."""
 
 
-def _compute_jersey_width(height_cm: float, gender: str, sport: str) -> float | None:
+# Хэрэглэгч хүснэгтэд гараар засварласан (томьёогоор тооцсоноос өөр) утгыг энд хадгална —
+# дараа удаа ижил төстэй хүн ирвэл томьёо биш ЭНЭ бодит засварыг эхлээд ашиглана.
+# Ялангуяа томьёо огт байхгүй хоосон нүдийг хүн гараар бөглөх бүрт энд хадгалагдаад,
+# цаг өнгөрөх тусам жинхэнэ дүрмийг олж мэдэхэд хэрэг болно.
+_CORRECTIONS_PATH = Path(__file__).resolve().parent / "data" / "jersey_size_corrections.jsonl"
+
+
+def _load_corrections() -> list[dict]:
+    if not _CORRECTIONS_PATH.exists():
+        return []
+    out = []
+    for line in _CORRECTIONS_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except Exception:
+            continue
+    return out
+
+
+def _save_correction(entry: dict) -> None:
+    _CORRECTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(_CORRECTIONS_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _lookup_correction(
+    height_cm: float, weight_kg: float, gender: str, sport: str, field: str,
+    height_tol: float = 1.5, weight_tol: float = 3.0,
+) -> float | None:
+    """Ойролцоо өндөр/жин/хүйс/спорттой өмнөх засварыг хайна (хамгийн сүүлд бичигдсэнийг
+    ашиглана — хэрэглэгч дараа дахин засвал шинэ утга нь давамгайлна). Тохирохгүй бол None,
+    дуудсан тал томьёо руу шилжинэ."""
+    best = None
+    for c in _load_corrections():
+        if c.get("gender") != gender or c.get("sport") != sport or field not in c:
+            continue
+        try:
+            ch = float(c.get("height_cm", 0))
+        except (TypeError, ValueError):
+            continue
+        if abs(ch - height_cm) > height_tol:
+            continue
+        cw = c.get("weight_kg")
+        if weight_kg and cw:
+            try:
+                if abs(float(cw) - weight_kg) > weight_tol:
+                    continue
+            except (TypeError, ValueError):
+                pass
+        best = c[field]
+    return best
+
+
+def _compute_jersey_width(height_cm: float, gender: str, sport: str, weight_kg: float = 0) -> float | None:
     """Тоглогчийн өндрөөс жинсэн (front/back) өргөнийг тооцно — зөвхөн хэрэглэгчийн өгсөн
     жишээнүүдээр 100% тохирсон томьёо: урт тооцох дүрэм (энэ функцэд байхгүй, доор тайлбарласан
     шалтгаанаар) хараахан баталгаажаагүй тул зөвхөн ӨРГӨНИЙГ тооцно, урт нь хоосон үлдэнэ —
@@ -92,6 +148,9 @@ def _compute_jersey_width(height_cm: float, gender: str, sport: str) -> float | 
     gender, sport = (gender or "").strip().lower(), (sport or "").strip().lower()
     if height_cm <= 0:
         return None
+    override = _lookup_correction(height_cm, weight_kg, gender, sport, "width_cm")
+    if override is not None:
+        return override
     if sport == "volleyball" and gender == "female":
         return round(63 + 0.5 * (height_cm - 160))
     if sport == "volleyball" and gender == "male":
@@ -109,10 +168,19 @@ def _round_to_even(x: float) -> int:
     return int(2 * round(x / 2))
 
 
-def _compute_jersey_length_from_chest(chest_cm: float) -> float | None:
-    """Цээжний хэмжээгээр урт тооцох цорын ганц тодорхой дүрэм (хэрэглэгч өгсөн): урт = цээж + 20,
-    үр дүнг тэгш тоо болгоно. Өндөр/жингээр урт тооцох дүрэм хараахан батлагдаагүй тул зөвхөн
-    ЭНЭ тохиолдолд л тооцно."""
+def _compute_jersey_length(
+    height_cm: float, weight_kg: float, chest_cm: float, gender: str, sport: str,
+) -> float | None:
+    """Урт тооцно. Эхлээд өмнөх засварын жагсаалтаас ойролцоо өндөр/жинтэй тохирол хайна
+    (баталгаажсан бодит утга томьёогоор илүү найдвартай); олдохгүй бол цээжний хэмжээгээр
+    (урт=цээж+20) тооцно — өндөр/жингээр урт тооцох ерөнхий томьёо хараахан батлагдаагүй
+    тул зөвхөн эдгээр хоёр тохиолдолд л утга буцаана, бусад тохиолдолд None (хоосон,
+    хэрэглэгч гараар бөглөнө)."""
+    gender, sport = (gender or "").strip().lower(), (sport or "").strip().lower()
+    if height_cm > 0:
+        override = _lookup_correction(height_cm, weight_kg, gender, sport, "length_cm")
+        if override is not None:
+            return override
     return _round_to_even(chest_cm + 20) if chest_cm > 0 else None
 
 
@@ -490,19 +558,18 @@ if st.session_state.get("pending_roster"):
     with col_calc:
         st.write("")
         if st.button("🧮 Хэмжээ тооцоолох", use_container_width=True):
+            def _num(v):
+                try:
+                    return float(v or 0)
+                except (TypeError, ValueError):
+                    return 0
+
             for r in st.session_state.pending_roster:
-                try:
-                    h = float(r.get("height_cm") or 0)
-                except ValueError:
-                    h = 0
-                try:
-                    c = float(r.get("chest_cm") or 0)
-                except ValueError:
-                    c = 0
-                w = _compute_jersey_width(h, gender, sport)
+                h, wt, c = _num(r.get("height_cm")), _num(r.get("weight_kg")), _num(r.get("chest_cm"))
+                w = _compute_jersey_width(h, gender, sport, weight_kg=wt)
                 r["width_cm"] = w if w is not None else ""
-                length_from_chest = _compute_jersey_length_from_chest(c)
-                r["length_cm"] = length_from_chest if length_from_chest is not None else ""
+                length = _compute_jersey_length(h, wt, c, gender, sport)
+                r["length_cm"] = length if length is not None else ""
             st.rerun()
     if not sport or not gender:
         st.caption("⚠️ Спорт/хүйс сонгоогүй тул өргөн тооцохгүй (буруу таамаглахаас зайлсхийв).")
@@ -521,6 +588,37 @@ if st.session_state.get("pending_roster"):
             if r.get("name") or r.get("number")
         ]
 
+    def _save_edited_size_corrections() -> int:
+        """Хэрэглэгч хүснэгтэд гараар засварласан (томьёо/өмнөх засвараас өөр) өргөн/уртыг
+        хадгална — дараа удаа ижил өндөр/жинтэй хүн ирвэл эхлээд эдгээрийг ашиглана.
+        Буцаана: хэдэн мөр хадгалагдсан."""
+        def _num(v):
+            try:
+                return float(v or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        saved = 0
+        for r in edited_roster:
+            h, wt, c = _num(r.get("height_cm")), _num(r.get("weight_kg")), _num(r.get("chest_cm"))
+            if h <= 0 or not gender or not sport:
+                continue
+            entry = {"height_cm": h, "weight_kg": wt or None, "chest_cm": c or None,
+                      "gender": gender, "sport": sport}
+            changed = False
+            edited_w = r.get("width_cm")
+            if edited_w not in (None, "") and edited_w != _compute_jersey_width(h, gender, sport, weight_kg=wt):
+                entry["width_cm"] = float(edited_w)
+                changed = True
+            edited_l = r.get("length_cm")
+            if edited_l not in (None, "") and edited_l != _compute_jersey_length(h, wt, c, gender, sport):
+                entry["length_cm"] = float(edited_l)
+                changed = True
+            if changed:
+                _save_correction(entry)
+                saved += 1
+        return saved
+
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("👁️ Урьдчилан харах", use_container_width=True):
@@ -529,6 +627,9 @@ if st.session_state.get("pending_roster"):
             st.json(people)
     with col2:
         if st.button("🏐 Джерси эхлүүлэх", type="primary", use_container_width=True):
+            n_saved = _save_edited_size_corrections()
+            if n_saved:
+                st.toast(f"📏 {n_saved} хэмжээний засвар хадгалагдлаа — дараа ижил хүн ирвэл ашиглана")
             people = _roster_names_numbers()
             if not people:
                 st.error("Хүснэгт хоосон байна — нэр эсвэл дугаар оруулаагүй байна.")
