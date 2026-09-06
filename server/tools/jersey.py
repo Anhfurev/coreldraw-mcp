@@ -463,6 +463,90 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
     return ToolResult.fail(result.get("error", "复制球衣行失败"))
 
 
+def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult:
+    """Тухайн нэг мөрийн джерсийг бодит биеийн хэмжээнд тааруулж ЖИНХЭНЭ хэмжээгээр өөрчилнө
+    (өмнө нь width_cm/length_cm зөвхөн хүснэгтэд лавлагаанд байсан, CorelDRAW руу огт
+    бичигддэггүй байсан — энэ функц тэрийг засна).
+
+    Яг яаж хийдэг вэ: нэг талыг (нүүр эсвэл ар тал тус тусад нь) панель + түүнтэй хамт
+    十字 тэмдэг + бичвэрүүдийг НЭГ бүлэг (group) болгож, тэр бүлгийг зорилтот өргөн/уртад
+    тааруулж ХЭМЖЭЭГ ӨӨРЧЛӨӨД (SizeWidth/SizeHeight), дараа нь ungroup хийнэ. Group хэмжээ
+    өөрчлөхөд дотор байгаа бүх зүйл (текст оруулаад) ЗӨВ ХАРЬЦААТАЙГААР дагаж масштаблагддаг
+    нь тест хийж баталгаажуулсан зүйл (жишээ нь өндөр 1.125 дахин өсвөл дотор байгаа бичвэрийн
+    өндөр ч яг 1.125 дахин өснө) — иймд хэмжээ өөрчлөгдсөний дараа текст төвөө алдахгүй,
+    учир нь бүх зүйл ХАМТДАА, ХАРЬЦаагаа хадгалж томорч/жижигэрдэг тул панелийн жинхэнэ
+    геометрийн төвтэй харьцангуй байрлал өөрчлөгдөхгүй.
+
+    Нүүр/ар талыг ялгах нь: мөрөнд яг 2 панель байх ёстой (нүүр, ар), X координатаар
+    жижиг нь нүүр тал. Бусад бүх хэлбэрийг (十字 тэмдэг, бичвэр) хоёр панелийн X завсрын
+    голоор нь аль тал руугаа хамаарахыг тодорхойлно (тогтмол тоо биш, харьцангуй тооцоолол).
+
+    row: мөрийн дугаар (1 = хамгийн дээд мөр, scan_jersey_rows-ээр харна).
+    width_cm/length_cm: зорилтот өргөн/урт (см) — эдгээр нь панелийн SizeWidth/SizeHeight
+    болж бичигдэнэ (см→мм хөрвүүлнэ). Аль нэг нь <= 0 бол алдаа буцаана (таамаглахгүй)."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+    if width_cm <= 0 or length_cm <= 0:
+        return ToolResult.fail("width_cm/length_cm 0-с их байх ёстой")
+
+    target_w_mm = width_cm * 10.0
+    target_h_mm = length_cm * 10.0
+
+    def _resize():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("нээлттэй баримт байхгүй")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        rows = _build_rows(texts, panels)
+        if not rows:
+            raise ValueError("одоогийн хуудсанд джерси олдсонгүй (REF_BACK_NAME хэлбэр байхгүй)")
+        if row < 1 or row > len(rows):
+            raise ValueError(f"{row}-р мөр хязгаараас гарсан, одоо нийт {len(rows)} джерси байна")
+
+        anchor_y = rows[row - 1]["anchor_y"]
+        row_shapes = _row_shapes_by_y(doc, anchor_y)
+        row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+        if len(row_panels) != 2:
+            raise ValueError(
+                f"{row}-р мөрөнд яг 2 панель байх ёстой байтал {len(row_panels)} олдлоо — "
+                "хэмжээ өөрчлөхөөс татгалзав"
+            )
+
+        front_panel, back_panel = sorted(row_panels, key=lambda s: s.PositionX)
+        midpoint_x = (front_panel.PositionX + front_panel.SizeWidth + back_panel.PositionX) / 2
+        front_side = [s for s in row_shapes if s.PositionX < midpoint_x]
+        back_side = [s for s in row_shapes if s.PositionX >= midpoint_x]
+
+        def _resize_side(side_shapes, panel, label):
+            old_w, old_h = panel.SizeWidth, panel.SizeHeight
+            rng = conn.app.CreateShapeRange()
+            for s in side_shapes:
+                rng.Add(s)
+            group = rng.Group()
+            group.SizeWidth = target_w_mm
+            group.SizeHeight = target_h_mm
+            group.Ungroup()
+            return {"side": label, "old_size": (round(old_w, 1), round(old_h, 1)),
+                    "new_size": (round(panel.SizeWidth, 1), round(panel.SizeHeight, 1))}
+
+        results = [
+            _resize_side(front_side, front_panel, "front"),
+            _resize_side(back_side, back_panel, "back"),
+        ]
+        return {"row": row, "target_width_cm": width_cm, "target_length_cm": length_cm,
+                "results": results}
+
+    result = conn.safe_call(_resize)
+    if result["success"]:
+        data = result["result"]
+        return ToolResult.ok(
+            f"{row}-р джерсийг {width_cm}x{length_cm}см хэмжээтэй болгов", **data
+        )
+    return ToolResult.fail(result.get("error", "джерси хэмжээ өөрчлөхөд алдаа гарлаа"))
+
+
 def set_jersey_material(rows: list, material: str) -> ToolResult:
     """把面料/材质代码写进指定几行球衣的面料标签（每行正/背各一个小标签，即之前发现的
     那个误继承了 REF_BACK_NAME 名字的 30x10mm 小文字，例如之前的示例"3016"）。

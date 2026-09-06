@@ -22,7 +22,13 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent.runner import SignageAgent
-from tools.jersey import duplicate_jersey_rows, scan_jersey_rows, set_jersey_material, set_jersey_players
+from tools.jersey import (
+    duplicate_jersey_rows,
+    resize_jersey_row,
+    scan_jersey_rows,
+    set_jersey_material,
+    set_jersey_players,
+)
 
 
 st.set_page_config(page_title="CorelChamp", page_icon="🏆", layout="wide")
@@ -588,7 +594,8 @@ if st.session_state.get("pending_roster"):
     st.caption(
         "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол нүд дээр дараад засаарай. "
         "«Start Jersey» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
-        "бичнэ (өргөн/урт зөвхөн лавлагаанд, CorelDRAW руу бичихгүй)."
+        "бичнэ, мөн өргөн/урт хоёулаа байвал панелийг яг тэр хэмжээнд өөрчилнө "
+        "(хоосон бол загвар мөрийн хэмжээгээр үлдэнэ, таамаглахгүй)."
     )
 
     _GENDER_TAGS = {"": "", "эрэгтэй": "male", "эмэгтэй": "female"}
@@ -704,6 +711,21 @@ if st.session_state.get("pending_roster"):
             if r.get("name") or r.get("number")
         ]
 
+    def _roster_sizes() -> list[tuple]:
+        """_roster_names_numbers-тэй яг ижил шүүлтүүрээр, ижил дараалалтай (width_cm, length_cm)
+        хосуудыг буцаана — хоёуланг нь мөр бүрт зэрэгцүүлж хэрэглэхийн тулд."""
+        def _num(v):
+            try:
+                return float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
+        return [
+            (_num(r.get("width_cm")), _num(r.get("length_cm")))
+            for r in roster
+            if r.get("name") or r.get("number")
+        ]
+
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("👁️ Урьдчилан харах", use_container_width=True):
@@ -723,24 +745,82 @@ if st.session_state.get("pending_roster"):
                 # Дээрээс хэрэглэгчийн сонгосон (эсвэл автоматаар илрүүлсэн) жинхэнэ загвар
                 # мөрийг хуулбарлаж яг хэдэн хүн байгаагаар нь шинэ мөр үүсгэнэ, дараа нь яг
                 # тэр шинэ мөрүүдэд нэр/дугаарыг бичнэ.
-                before = scan_jersey_rows()
-                total_before = (before.data or {}).get("total", 0) if before.success else 0
-                dup_result = duplicate_jersey_rows(source_row=source_row, count=len(people))
-                if not dup_result.success:
-                    st.error(dup_result.error)
+                #
+                # ЭНД ЗААВАЛ 1 нэгээр нь duplicate+resize хийх ёстой, бөөнөөр нь count=N дуудаад
+                # дараа нь тус тусад нь resize хийж болохгүй: duplicate_jersey_rows нэг удаад
+                # бүх шинэ мөрийг ЗАГВАРЫН (өмнөх, өөрчлөгдөөгүй) хэмжээгээр зайг нь тооцож
+                # байрлуулдаг тул хожим resize_jersey_row-ээр том болговол дараагийн мөртэй
+                # давхцах эрсдэлтэй (тестээр олж мэдсэн бодит асуудал). 1 нэгээр нь хийвэл
+                # duplicate_jersey_rows дуудагдах бүрд өмнөх мөрийн ЖИНХЭНЭ (аль хэдийн
+                # resize хийгдсэн бол шинэ хэмжээгээр) байдлыг харж зайг зөв тооцно.
+                total_before = scan_jersey_rows()
+                total_before = (total_before.data or {}).get("total", 0) if total_before.success else 0
+                sizes = _roster_sizes()
+
+                new_rows: list[int] = []
+                dup_error = None
+                resize_errors = []
+                for i, (width_cm, length_cm) in enumerate(sizes):
+                    dup_result = duplicate_jersey_rows(source_row=source_row, count=1)
+                    if not dup_result.success:
+                        dup_error = f"{i + 1}-р хүн дээр зогсов: {dup_result.error}"
+                        break
+                    new_row = total_before + 1 + i
+                    new_rows.append(new_row)
+                    # Нэр/дугаар бичихээс ӨМНӨ хэмжээг өөрчилнө — учир нь content бичсэний
+                    # дараа дахин SizeWidth/Height тохируулах ёсгүй (текст дахин суналт болно,
+                    # энэ дүрмийг өмнө нь бодит алдаагаар олж мэдсэн).
+                    if width_cm and length_cm and width_cm > 0 and length_cm > 0:
+                        rsz = resize_jersey_row(new_row, width_cm=width_cm, length_cm=length_cm)
+                        if not rsz.success:
+                            resize_errors.append(f"{new_row}-р мөр: {rsz.error}")
+                if resize_errors:
+                    st.warning("Зарим мөрийн хэмжээ өөрчлөгдсөнгүй (нэр/дугаар хэвээр бичигдэнэ): "
+                               + "; ".join(resize_errors))
+
+                if dup_error:
+                    st.error(dup_error)
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": f"❌ Джерси үүсгэж чадсангүй: {dup_error}"}
+                    )
                 else:
-                    new_rows = list(range(total_before + 1, total_before + 1 + len(people)))
                     fill_updates = [
                         {"row": r, **p} for r, p in zip(new_rows, people)
                     ]
                     fill_result = set_jersey_players(fill_updates, dry_run=False)
                     if not fill_result.success:
                         st.error(fill_result.error)
+                        st.session_state.messages.append(
+                            {"role": "assistant", "content": f"❌ Нэр/дугаар бичиж чадсангүй: {fill_result.error}"}
+                        )
                     else:
                         mat_result = set_jersey_material(new_rows, material)
+                        labels_written = sum(
+                            r.get("labels_updated", 0) for r in (mat_result.data or {}).get("results", [])
+                        ) if mat_result.success else 0
                         if not mat_result.success:
                             st.warning(f"Нэр/дугаар бичигдсэн ч материалын шошго амжилтгүй: {mat_result.error}")
                         st.success(f"{len(people)} джерси үүсгэж, мэдээллийг бичлээ!")
+
+                        # Дуусаад чат руу нэг тайлан бичнэ — хэрэглэгчийн хүсэлт: зөвхөн
+                        # энэ хэсэгт л харагдаад ширээ дээрээс алга болчих success/warning
+                        # мессежийг чатын түүхэнд бас үлдээх (алгасахгүй, дараа буцаад харах боломжтой).
+                        resized_count = sum(1 for w, l in sizes if w and l and w > 0 and l > 0)
+                        summary = (
+                            f"✅ {len(people)} джерси үүсгэж, {source_row}-р мөрийг загвар болгон "
+                            f"{new_rows[0]}-{new_rows[-1]}-р мөрүүдэд нэр/дугаарыг бичлээ. "
+                            f"Материал: «{material}». Хэмжээ: {resized_count}/{len(people)} хүнд "
+                            f"өргөн/уртаар нь панелийг өөрчилсөн"
+                            + (f", {len(people) - resized_count} нь загвар мөрийн хэмжээгээр үлдсэн "
+                               "(өргөн/урт тооцоогдоогүй)." if resized_count < len(people) else ".")
+                        )
+                        if labels_written == 0:
+                            summary += (
+                                " ⚠️ Гэхдээ загвар мөрд материалын шошго (жижиг текст) огт "
+                                "олдоогүй тул шинэ мөрүүдэд ч материалын шошго бичигдсэнгүй — "
+                                "загвар мөрөндөө эхлээд материалын шошгоо гараар нэмээрэй."
+                            )
+                        st.session_state.messages.append({"role": "assistant", "content": summary})
                         del st.session_state.pending_roster
                         st.rerun()
     with col3:
