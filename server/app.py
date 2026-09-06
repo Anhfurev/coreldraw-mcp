@@ -556,9 +556,21 @@ if submission:
             st.caption(f"Total {final_event['turns']} turns, {final_event['tool_calls']} tool calls")
             st.session_state.messages.append({"role": "assistant", "content": display_text or text})
             if roster:
+                def _to_num(v):
+                    try:
+                        return float(v) if v not in (None, "") else None
+                    except (TypeError, ValueError):
+                        return None
+
+                # AI-ийн буцаасан height_cm/weight_kg/chest_cm бүгд string (жишээ нь "170") —
+                # хүснэгтэд бодит тоо болгож хадгална, эс тэгвэл нэг багана дотор string ба
+                # тоо холилдож st.data_editor-ийн багана төрөл таних логикийг эвдэж, зарим
+                # нүд засварлагдахгүй/хачин харагдах шалтгаан болдог.
                 for r in roster:
-                    r.setdefault("width_cm", "")
-                    r.setdefault("length_cm", "")
+                    for key in ("height_cm", "weight_kg", "chest_cm"):
+                        r[key] = _to_num(r.get(key))
+                    r.setdefault("width_cm", None)
+                    r.setdefault("length_cm", None)
                 st.session_state.pending_roster = roster
         elif final_event:
             msg = f"❌ {final_event['message']}"
@@ -602,10 +614,8 @@ if st.session_state.get("pending_roster"):
 
             for r in st.session_state.pending_roster:
                 h, wt = _num(r.get("height_cm")), _num(r.get("weight_kg"))
-                w = _compute_jersey_width(h, gender, sport, weight_kg=wt)
-                r["width_cm"] = w if w is not None else ""
-                length = _compute_jersey_length(h, wt, gender, sport)
-                r["length_cm"] = length if length is not None else ""
+                r["width_cm"] = _compute_jersey_width(h, gender, sport, weight_kg=wt)
+                r["length_cm"] = _compute_jersey_length(h, wt, gender, sport)
             st.rerun()
     if not sport or not gender:
         st.caption("⚠️ Спорт/хүйс сонгоогүй тул өргөн тооцохгүй (буруу таамаглахаас зайлсхийв).")
@@ -618,6 +628,18 @@ if st.session_state.get("pending_roster"):
         use_container_width=True,
         key="roster_editor",
         column_order=["name", "number", "width_cm", "length_cm", "height_cm", "weight_kg", "chest_cm"],
+        # Багана бүрийн төрлийг тодорхой заана — Streamlit-д өөрөө таниулбал (ялангуяа нэг
+        # багана дотор хоосон None ба бодит тоо холилдох үед) зарим нүд засварлагдахгүй
+        # болох тохиолдол гардаг тул илэрхий зааж өгвөл найдвартай.
+        column_config={
+            "name": st.column_config.TextColumn("name"),
+            "number": st.column_config.TextColumn("number"),
+            "width_cm": st.column_config.NumberColumn("width_cm"),
+            "length_cm": st.column_config.NumberColumn("length_cm"),
+            "height_cm": st.column_config.NumberColumn("height_cm"),
+            "weight_kg": st.column_config.NumberColumn("weight_kg"),
+            "chest_cm": st.column_config.NumberColumn("chest_cm"),
+        },
     )
 
     def _roster_names_numbers() -> list[dict]:
