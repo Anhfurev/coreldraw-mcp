@@ -512,22 +512,29 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
     (өмнө нь width_cm/length_cm зөвхөн хүснэгтэд лавлагаанд байсан, CorelDRAW руу огт
     бичигддэггүй байсан — энэ функц тэрийг засна).
 
-    Яг яаж хийдэг вэ: нэг талыг (нүүр эсвэл ар тал тус тусад нь) панель + түүнтэй хамт
-    十字 тэмдэг + бичвэрүүдийг НЭГ бүлэг (group) болгож, тэр бүлгийг зорилтот өргөн/уртад
-    тааруулж ХЭМЖЭЭГ ӨӨРЧЛӨӨД (SizeWidth/SizeHeight), дараа нь ungroup хийнэ. Group хэмжээ
-    өөрчлөхөд дотор байгаа бүх зүйл (текст оруулаад) ЗӨВ ХАРЬЦААТАЙГААР дагаж масштаблагддаг
-    нь тест хийж баталгаажуулсан зүйл (жишээ нь өндөр 1.125 дахин өсвөл дотор байгаа бичвэрийн
-    өндөр ч яг 1.125 дахин өснө) — иймд хэмжээ өөрчлөгдсөний дараа текст төвөө алдахгүй,
-    учир нь бүх зүйл ХАМТДАА, ХАРЬЦаагаа хадгалж томорч/жижигэрдэг тул панелийн жинхэнэ
-    геометрийн төвтэй харьцангуй байрлал өөрчлөгдөхгүй.
+    2026-09-06 бүрэн дахин бичсэн (хэрэглэгчийн олж мэдсэн 2 бодит алдааг засав):
+    1. ӨМНӨ нь панель + бичвэрийг НЭГ group болгож хамт хэмжээг нь өөрчилдөг байсан — group
+       resize дотор байгаа бичвэрийг ПРОПОРЦИОНАЛЬ дагуулж суналт хийдэг (тоо/нэр "сунаж"
+       харагдах шалтгаан яг энэ байсан). Одоо ЗӨВХӨН панель (background тэгш өнцөгт)-ийг
+       шууд SizeWidth/SizeHeight-ээр өөрчилнө, бичвэрт ХЭЗЭЭ Ч SizeWidth/Height хөндөхгүй —
+       зөвхөн хэвтээ дахин төвлөрүүлнэ (байрлал өөрчлөгдөнө, хэмжээ өөрчлөгдөхгүй).
+    2. ӨМНӨ нь нүүр/ар панель тус бүрийг ӨӨРИЙН зүүн ирмэгээс тус тусад нь томруулдаг
+       байсан — нүүр панель өргөсвөл баруун тийш нь ургаж, ар панельтай хоорондын завсрыг
+       (gap) идэж/давхцуулдаг байсан (хэрэглэгчийн олж мэдсэн бодит алдаа: "where is the
+       gap"). Одоо өөрчлөхөөс ӨМНӨ жинхэнэ завсрыг хэмждэг, дараа нь ар панелийг нүүрийн
+       ШИНЭ баруун ирмэгээс яг тэр хэмжээний завсартай байрлуулна — завсар ямар ч хэмжээнд
+       өөрчлөгдөхгүй хадгалагдана. Ар талын бусад бүх хэлбэр (十字 тэмдэг, материалын
+       шошго, текст) панелийн хамт яг ижил хэмжээгээр X тэнхлэгт шилждэг тул харьцангуй
+       байрлал алдагдахгүй.
 
-    Нүүр/ар талыг ялгах нь: мөрөнд яг 2 панель байх ёстой (нүүр, ар), X координатаар
-    жижиг нь нүүр тал. Бусад бүх хэлбэрийг (十字 тэмдэг, бичвэр) хоёр панелийн X завсрын
-    голоор нь аль тал руугаа хамаарахыг тодорхойлно (тогтмол тоо биш, харьцангуй тооцоолол).
+    Нүүр/ар талыг ялгах: мөрөнд яг 2 панель байх ёстой, X координатаар жижиг нь нүүр тал.
+    Бусад хэлбэрийг хоёр панелийн X завсрын голоор нь аль тал руугаа хамаарахыг тогтооно.
 
     row: мөрийн дугаар (1 = хамгийн дээд мөр, scan_jersey_rows-ээр харна).
-    width_cm/length_cm: зорилтот өргөн/урт (см) — эдгээр нь панелийн SizeWidth/SizeHeight
-    болж бичигдэнэ (см→мм хөрвүүлнэ). Аль нэг нь <= 0 бол алдаа буцаана (таамаглахгүй)."""
+    width_cm/length_cm: зорилтот өргөн/урт (см) — панелийн SizeWidth/SizeHeight болж
+    бичигдэнэ (см→мм). Аль нэг нь <= 0 бол алдаа буцаана. (Биеийн хэмжээнээс панелийн
+    хэмжээ рүү хөрвүүлэх томьёо — жишээ нь өргөнд +7, урт/2 — байвал энэ функцийг дуудахаас
+    ӨМНӨ дуудагч тал тооцоод дуудна, энэ функц зөвхөн өгсөн мм рүү шууд тааруулна.)"""
     conn = get_connection()
     if not conn.status.connected:
         return ToolResult.fail("CorelDRAW тохирсонгүй")
@@ -545,14 +552,18 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
         texts, panels = _collect(doc)
         rows = _build_rows(texts, panels)
         if not rows:
-            raise ValueError("одоогийн хуудсанд джерси олдсонгүй (REF_BACK_NAME хэлбэр байхгүй)")
+            raise ValueError("одоогийн хуудсанд джерси олдсонгүй (найдвартай хос панель байхгүй)")
         if row < 1 or row > len(rows):
             raise ValueError(f"{row}-р мөр хязгаараас гарсан, одоо нийт {len(rows)} джерси байна")
 
         anchor_y = rows[row - 1]["anchor_y"]
         all_anchors = [r["anchor_y"] for r in rows]
         row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
-        row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+
+        def _is_panel(s):
+            return s.SizeWidth > 200 and s.SizeHeight > 200
+
+        row_panels = [s for s in row_shapes if _is_panel(s)]
         if len(row_panels) != 2:
             raise ValueError(
                 f"{row}-р мөрөнд яг 2 панель байх ёстой байтал {len(row_panels)} олдлоо — "
@@ -560,34 +571,64 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
             )
 
         front_panel, back_panel = sorted(row_panels, key=lambda s: s.PositionX)
+        old_front_size = (round(front_panel.SizeWidth, 1), round(front_panel.SizeHeight, 1))
+        old_back_size = (round(back_panel.SizeWidth, 1), round(back_panel.SizeHeight, 1))
+        gap = back_panel.PositionX - (front_panel.PositionX + front_panel.SizeWidth)
+        old_back_x = back_panel.PositionX
+
         midpoint_x = (front_panel.PositionX + front_panel.SizeWidth + back_panel.PositionX) / 2
-        front_side = [s for s in row_shapes if s.PositionX < midpoint_x]
-        back_side = [s for s in row_shapes if s.PositionX >= midpoint_x]
+        front_others = [s for s in row_shapes if not _is_panel(s) and s.PositionX < midpoint_x]
+        back_others = [s for s in row_shapes if not _is_panel(s) and s.PositionX >= midpoint_x]
 
-        def _resize_side(side_shapes, panel, label):
-            old_w, old_h = panel.SizeWidth, panel.SizeHeight
-            rng = conn.app.CreateShapeRange()
-            for s in side_shapes:
-                rng.Add(s)
-            group = rng.Group()
-            group.SizeWidth = target_w_mm
-            group.SizeHeight = target_h_mm
-            group.Ungroup()
-            return {"side": label, "old_size": (round(old_w, 1), round(old_h, 1)),
-                    "new_size": (round(panel.SizeWidth, 1), round(panel.SizeHeight, 1))}
+        # 1) ЗӨВХӨН панелийг (background) шууд хэмжээг нь өөрчилнө — бичвэр огт хөндөгдөхгүй.
+        front_panel.SizeWidth = target_w_mm
+        front_panel.SizeHeight = target_h_mm
+        back_panel.SizeWidth = target_w_mm
+        back_panel.SizeHeight = target_h_mm
 
-        results = [
-            _resize_side(front_side, front_panel, "front"),
-            _resize_side(back_side, back_panel, "back"),
-        ]
-        return {"row": row, "target_width_cm": width_cm, "target_length_cm": length_cm,
-                "results": results}
+        # 2) Ар панелийг нүүрийн ШИНЭ баруун ирмэгээс хуучин завсрын зайгаар байрлуулна.
+        back_panel.PositionX = front_panel.PositionX + front_panel.SizeWidth + gap
+        back_shift_x = back_panel.PositionX - old_back_x
+
+        # 3) Ар талын бусад бүх хэлбэр (十字 тэмдэг/шошго/текст) панелийн хамт яг тэр хэмжээгээр
+        #    шилжинэ — байрлал (харьцангуй офсет) алдагдахгүй, хэмжээ хэзээ ч хөндөгдөхгүй.
+        if back_shift_x:
+            for s in back_others:
+                s.PositionX = s.PositionX + back_shift_x
+
+        # 4) 4 үндсэн нэрлэгдсэн текст (жижиг шошго/十字 тэмдэг биш)-ийг зөвхөн ХЭВТЭЭ дахин
+        #    төвлөрүүлнэ (шинэ панелийн жинхэнэ геометрийн төвтэй тааруулна), хэмжээг нь
+        #    огт хөндөхгүй.
+        def _recenter(shapes_list, panel):
+            panel_dict = {"x": panel.PositionX, "y": panel.PositionY,
+                          "w": panel.SizeWidth, "h": panel.SizeHeight}
+            for s in shapes_list:
+                if s.Type != 6 or s.SizeHeight < _MIN_TEXT_HEIGHT:
+                    continue
+                text_dict = {"x": s.PositionX, "y": s.PositionY, "w": s.SizeWidth, "h": s.SizeHeight}
+                center = _panel_center_x([panel_dict], text_dict)
+                if center is not None:
+                    s.PositionX = center - s.SizeWidth / 2
+
+        _recenter(front_others, front_panel)
+        _recenter(back_others, back_panel)
+
+        return {
+            "row": row, "target_width_cm": width_cm, "target_length_cm": length_cm,
+            "gap_preserved_mm": round(gap, 1),
+            "front": {"old_size": old_front_size,
+                      "new_size": (round(front_panel.SizeWidth, 1), round(front_panel.SizeHeight, 1))},
+            "back": {"old_size": old_back_size,
+                     "new_size": (round(back_panel.SizeWidth, 1), round(back_panel.SizeHeight, 1))},
+        }
 
     result = conn.safe_call(_resize)
     if result["success"]:
         data = result["result"]
         return ToolResult.ok(
-            f"{row}-р джерсийг {width_cm}x{length_cm}см хэмжээтэй болгов", **data
+            f"{row}-р джерсийг {width_cm}x{length_cm}см хэмжээтэй болгов "
+            f"(завсар {data['gap_preserved_mm']}mm хадгалагдав, бичвэр суналгүй)",
+            **data,
         )
     return ToolResult.fail(result.get("error", "джерси хэмжээ өөрчлөхөд алдаа гарлаа"))
 

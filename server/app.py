@@ -810,8 +810,15 @@ if st.session_state.get("pending_roster"):
                         # Нэр/дугаар бичихээс ӨМНӨ хэмжээг өөрчилнө — учир нь content бичсэний
                         # дараа дахин SizeWidth/Height тохируулах ёсгүй (текст дахин суналт болно,
                         # энэ дүрмийг өмнө нь бодит алдаагаар олж мэдсэн).
+                        #
+                        # Хүснэгтэд байгаа width_cm/length_cm бол ХҮНИЙ БИЕИЙН лавлагаа хэмжээ —
+                        # панелийн бодит хэмжээ рүү хөрвүүлэхэд хэрэглэгчийн өгсөн тодорхой
+                        # томьёо хэрэглэнэ: панелийн өргөн = биеийн өргөн + 7см, панелийн урт =
+                        # биеийн урт ÷ 2 (жишээ нь 68см/112см → 75см/56см).
                         if width_cm and length_cm and width_cm > 0 and length_cm > 0:
-                            rsz = resize_jersey_row(new_row, width_cm=width_cm, length_cm=length_cm)
+                            panel_width_cm = width_cm + 7
+                            panel_length_cm = length_cm / 2
+                            rsz = resize_jersey_row(new_row, width_cm=panel_width_cm, length_cm=panel_length_cm)
                             if not rsz.success:
                                 resize_errors.append(f"{new_row}-р мөр: {rsz.error}")
                 finally:
