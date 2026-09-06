@@ -401,9 +401,9 @@ def _shape_y_extent(s) -> tuple[float, float]:
 
 def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
     """把已有的一整件球衣（面板、正反面文字、两个十字对位标记、两个面料标签，完整复制，
-    不遗漏任何一个形状）复制出 count 份新的，追加在当前最上面一行的上方（不是下方——
-    本文件下方剩余空间通常不够一整行，上方空间更充足，具体以运行时页面实际剩余空间为准，
-    不是猜测）。新行与现有最上面一行之间、以及新行彼此之间，按面板边缘留白 20mm 计算
+    不遗漏任何一个形状）复制出 count 份新的，追加在当前最下面一行的下方（用户明确要求：
+    参考件放最顶上不动，新复制的依次往下摆，而不是往上摆——2026-09-06 从"往上"改成
+    "往下"）。新行与现有最下面一行之间、以及新行彼此之间，按面板边缘留白 20mm 计算
     间距——不同体型的面板高度不同，因此不能假设行与行之间是固定的锚点间距。
 
     复制出的新行内容、位置、大小与源完全相同（相当于"再印一件一模一样的"），复制后需要
@@ -415,8 +415,8 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
                 用 scan_jersey_rows 查看现有行号）。
     count: 要新增几件，默认 1（建议先用 1 验证效果，确认无误再一次性复制剩余数量）。
 
-    会拒绝执行而不是猜一个可能出错的位置的情况：新行会超出页面顶部边界——页面里没有
-    足够空间放这么多新行，需要先手动把页面调高（注意 set_page_size 会围绕页面中心
+    会拒绝执行而不是猜一个可能出错的位置的情况：新行会超出页面底部边界（Y<0）——页面里
+    没有足够空间放这么多新行，需要先手动把页面调高（注意 set_page_size 会围绕页面中心
     缩放，已有形状坐标会整体偏移，调完之后所有涉及坐标的操作都要重新读取，不能用
     调整前的坐标）。"""
     conn = get_connection()
@@ -430,7 +430,6 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
         if doc is None:
             raise RuntimeError("没有打开的文档")
         doc.Unit = _CDR_MILLIMETER
-        page_height = doc.ActivePage.SizeHeight
         texts, panels = _collect(doc)
         rows = _build_rows(texts, panels)
         if not rows:
@@ -457,25 +456,25 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
         row_top_offset = max(e[1] for e in extents) - source_anchor_y
         row_height = row_top_offset - row_bottom_offset
 
-        # 现有页面上所有形状的最高点（不止 source_row，因为最上面一行不一定是 source_row）
+        # 现有页面上所有形状的最低点（不止 source_row，因为最下面一行不一定是 source_row）
         all_shapes = [doc.ActivePage.Shapes.Item(i) for i in range(1, doc.ActivePage.Shapes.Count + 1)]
-        current_top = max(_shape_y_extent(s)[1] for s in all_shapes)
+        current_bottom = min(_shape_y_extent(s)[0] for s in all_shapes)
 
         # 先算出全部 count 个目标位置并校验，全部通过才开始写——不要边写边查，
         # 否则第 k 件超出页面时前面 k-1 件已经真实创建了，却整体报"失败"
         margin = 5.0  # mm，留一点余量而不是刚好贴到页面边缘
         targets = []
         for k in range(count):
-            # 第 1 件贴着现有最高行的顶边留 20mm；第 2 件及以后贴着上一件新行的顶边留 20mm
+            # 第 1 件贴着现有最低行的底边留 20mm；第 2 件及以后贴着上一件新行的底边留 20mm
             # （新行彼此尺寸相同，间距自然一致，不需要再假设）
-            prev_top = current_top if k == 0 else targets[-1] + row_top_offset
-            new_row_bottom = prev_top + _ROW_CLEARANCE
-            target_anchor_y = new_row_bottom - row_bottom_offset
-            projected_top = target_anchor_y + row_top_offset
-            if projected_top > page_height - margin:
+            prev_bottom = current_bottom if k == 0 else targets[-1] + row_bottom_offset
+            new_row_top = prev_bottom - _ROW_CLEARANCE
+            target_anchor_y = new_row_top - row_top_offset
+            projected_bottom = target_anchor_y + row_bottom_offset
+            if projected_bottom < margin:
                 raise ValueError(
-                    f"第 {k + 1} 件新球衣会超出页面顶部（预计顶部 {round(projected_top, 1)}mm，"
-                    f"页面高度只有 {page_height}mm）——未写入任何新行，"
+                    f"第 {k + 1} 件新球衣会超出页面底部（预计底部 {round(projected_bottom, 1)}mm，"
+                    "Y 不能小于 0）——未写入任何新行，"
                     f"页面空间最多还能安全放 {k} 件；需要更多请先调高页面"
                 )
             targets.append(target_anchor_y)
