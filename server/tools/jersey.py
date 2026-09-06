@@ -40,11 +40,28 @@ _NAME_FRONT_TEAM = "REF_FRONT_TEAM"
 # 多位数号码的字间距（实测 -15 紧凑且自然，-30 过挤）
 _MULTI_CHAR_SPACING = -15.0
 
+# 背面姓名的最大宽度（mm）——用户的硬性规则："姓名最大宽度 25cm，超出时等比例缩小
+# （不允许非等比拉伸变形）"。长名字换上去后经常超限，必须写完内容量到真实宽度再判断。
+_MAX_NAME_WIDTH = 250.0
+
 # 球衣文字的最小高度（mm）。批量文件里存在小号文字（面料代码标签"3016"，约 30×10mm）
 # 沿用了 REF_BACK_NAME 这个名字：只靠名字匹配，它既会被误判成多出来的一件球衣，又会在
 # 归行时覆盖掉同一行真正的姓名形状（导致改名字改到标签上）。真实球衣文字高 35~65mm，
 # 取 20mm 作为分界线，在收集阶段就把这类小标签排除掉。
 _MIN_TEXT_HEIGHT = 20.0
+
+# 面料标签除了"矮"，还必须"窄"。2026-09-06 加上宽度判据，起因是一个真实的破坏性 bug：
+# 长姓名按"最大 250mm，超出等比例缩小"的规则缩完之后，高度会跟着等比例变矮（例如
+# 700mm×50mm 的长名字缩到 250mm 宽时高度只剩 16mm），于是它比 _MIN_TEXT_HEIGHT 还矮，
+# 被 set_jersey_material 当成面料标签、把球员姓名直接覆盖成了"3016"。
+# 真实面料标签("3016"这类)大约 24~40mm 宽，而缩过的姓名是 250mm 宽 —— 宽度能干净地
+# 区分两者，所以判定标签必须同时满足"矮"和"窄"。
+_MAX_LABEL_WIDTH = 120.0
+
+
+def _is_material_label(w: float, h: float) -> bool:
+    """是否是面料标签那种小文字（必须又矮又窄，见 _MAX_LABEL_WIDTH 上面的说明）"""
+    return h < _MIN_TEXT_HEIGHT and w < _MAX_LABEL_WIDTH
 
 
 def _read_text(shape) -> str:
@@ -105,7 +122,7 @@ def _collect(doc) -> tuple[list[dict], list[dict]]:
             continue
 
         if name in (_NAME_BACK_NAME, _NAME_BACK_NUM, _NAME_FRONT_NUM, _NAME_FRONT_TEAM):
-            if h >= _MIN_TEXT_HEIGHT:
+            if not _is_material_label(w, h):
                 texts.append({"shape": s, "name": name, "x": x, "y": y, "w": w, "h": h})
         elif w > 200 and h > 200:
             # 面板矩形：足够大、能把文字整个装进去的形状
@@ -278,6 +295,17 @@ def _apply_one(row_obj: dict, panels: list[dict], name: str, number: str, dry_ru
         if key in (_NAME_BACK_NUM, _NAME_FRONT_NUM):
             _set_char_spacing(shape, _MULTI_CHAR_SPACING if len(content) >= 2 else 0.0)
 
+        # 姓名宽度上限（用户的硬性规则）：背面姓名最宽 250mm，超出必须 **等比例** 缩小，
+        # 绝不允许只压宽度那种非等比拉伸变形。长名字（如 "ARIUNZAYA"、"ARIUN IRGL"）
+        # 换上去之后经常超限，所以必须在写完内容、量到真实宽度之后再判断。
+        shrunk_to = None
+        if key == _NAME_BACK_NAME and shape.SizeWidth > _MAX_NAME_WIDTH:
+            k = _MAX_NAME_WIDTH / shape.SizeWidth
+            target_w, target_h = _MAX_NAME_WIDTH, shape.SizeHeight * k
+            shape.SizeWidth = target_w
+            shape.SizeHeight = target_h
+            shrunk_to = round(shape.SizeWidth, 1)
+
         # 重新居中：基准是面板真实几何中心，不是文字自己原来的中心
         # 注意此处只改 X、绝不调用 set_shape_size（否则新文字会被拉伸到旧包围盒）
         new_offset = None
@@ -285,10 +313,13 @@ def _apply_one(row_obj: dict, panels: list[dict], name: str, number: str, dry_ru
             shape.PositionX = center - shape.SizeWidth / 2
             new_offset = round(shape.PositionX + shape.SizeWidth / 2 - center, 2)
 
-        changes.append({
+        entry = {
             "shape": key, "old": old, "new": content,
             "recentered": center is not None, "offset_after": new_offset,
-        })
+        }
+        if shrunk_to is not None:
+            entry["name_shrunk_to_mm"] = shrunk_to
+        changes.append(entry)
     return changes
 
 
@@ -610,8 +641,8 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
             panel_dict = {"x": panel.PositionX, "y": panel.PositionY,
                           "w": panel.SizeWidth, "h": panel.SizeHeight}
             for s in shapes_list:
-                if s.Type != 6 or s.SizeHeight < _MIN_TEXT_HEIGHT:
-                    continue
+                if s.Type != 6 or _is_material_label(s.SizeWidth, s.SizeHeight):
+                    continue  # шошго биш, жинхэнэ 4 текстийг л төвлөрүүлнэ
                 text_dict = {"x": s.PositionX, "y": s.PositionY, "w": s.SizeWidth, "h": s.SizeHeight}
                 center = _panel_center_x([panel_dict], text_dict)
                 if center is not None:
@@ -712,14 +743,17 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
             labels = []
             for s in row_shapes:
                 try:
-                    h, shape_type = s.SizeHeight, s.Type
+                    w, h, shape_type = s.SizeWidth, s.SizeHeight, s.Type
                 except Exception:
                     continue
                 # Type == 6 бол артистик текст (CLAUDE.md-д баримтжуулсан жинхэнэ код, 3 биш —
                 # 3 бол шугам/муруй). Зөвхөн өндрөөр шүүвэл өндөр 0 байдаг загалмай
                 # тэмдэглэгээний шугамууд ч санамсаргүй орж ирж болзошгүй тул Type-ийг зайлшгүй шалгана.
-                if shape_type != 6 or h >= _MIN_TEXT_HEIGHT:
-                    continue  # текст биш, эсвэл 4 үндсэн текстийн нэг (~30x10mm биш)
+                # Өргөнийг ч заавал шалгана — 250mm хүртэл жижигрүүлсэн урт нэр намхан
+                # болдог тул зөвхөн өндрөөр шүүвэл түүнийг шошго гэж андуурч, тоглогчийн
+                # нэрийг материалын кодоор дарж бичдэг байсан (бодит алдаа).
+                if shape_type != 6 or not _is_material_label(w, h):
+                    continue
                 labels.append(s)
 
             created = 0
@@ -773,3 +807,196 @@ def set_batch_mode(enabled: bool) -> ToolResult:
     if result["success"]:
         return ToolResult.ok(f"batch mode {'идэвхжлээ' if enabled else 'унтарлаа'}", **result["result"])
     return ToolResult.fail(result.get("error", "batch mode тохируулж чадсангүй"))
+
+
+def recenter_jersey_texts(rows: Optional[list] = None) -> ToolResult:
+    """Заасан мөрүүдийн (rows хоосон бол БҮХ мөрийн) 4 үндсэн бичвэрийг тухайн талын
+    панелийн жинхэнэ геометрийн төвд дахин байрлуулна, мөн背面 姓名 250mm-ээс өргөн бол
+    ЭТГЭЭ ХАРЬЦААГААР жижигрүүлнэ (хэрэглэгчийн хатуу дүрэм).
+
+    Юунд хэрэгтэй вэ: өмнө нь `_panel_center_x` Y тэнхлэгийн шалгуураас болж чимээгүй
+    алгасдаг байсан тул аль хэдийн үүсгэчихсэн мөрүүдийн бичвэр төвдөө биш үлдсэн —
+    энэ функц тэдгээрийг бөөнөөр нь засна (шинээр юу ч үүсгэхгүй, зөвхөн байрлал/хэмжээ)."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+
+    def _apply():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("нээлттэй баримт байхгүй")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        all_rows = _build_rows(texts, panels)
+        if not all_rows:
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
+
+        targets = rows or [r["row"] for r in all_rows]
+        for row in targets:
+            if row < 1 or row > len(all_rows):
+                raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
+
+        results = []
+        for row in targets:
+            row_obj = all_rows[row - 1]
+            fixed = []
+            for key, t in row_obj["shapes"].items():
+                shape = t["shape"]
+                center = _panel_center_x(panels, t)
+                if center is None:
+                    fixed.append({"shape": key, "skipped": "тохирох панель олдсонгүй"})
+                    continue
+                shrunk = None
+                if key == _NAME_BACK_NAME and shape.SizeWidth > _MAX_NAME_WIDTH:
+                    k = _MAX_NAME_WIDTH / shape.SizeWidth
+                    target_h = shape.SizeHeight * k
+                    shape.SizeWidth = _MAX_NAME_WIDTH
+                    shape.SizeHeight = target_h
+                    shrunk = round(shape.SizeWidth, 1)
+                before_offset = round(shape.PositionX + shape.SizeWidth / 2 - center, 2)
+                shape.PositionX = center - shape.SizeWidth / 2
+                entry = {"shape": key, "offset_before": before_offset,
+                         "offset_after": round(shape.PositionX + shape.SizeWidth / 2 - center, 2)}
+                if shrunk is not None:
+                    entry["name_shrunk_to_mm"] = shrunk
+                fixed.append(entry)
+            results.append({"row": row, "fixed": fixed})
+        return {"rows_processed": len(targets), "results": results}
+
+    result = conn.safe_call(_apply)
+    if result["success"]:
+        data = result["result"]
+        return ToolResult.ok(f"{data['rows_processed']} мөрийн бичвэрийг дахин төвлөрүүлэв", **data)
+    return ToolResult.fail(result.get("error", "дахин төвлөрүүлэхэд алдаа гарлаа"))
+
+
+def delete_jersey_row(row: int) -> ToolResult:
+    """Заасан нэг мөрийн БҮХ хэлбэрийг (2 панель + бичвэрүүд + 十字 тэмдэг + шошго)
+    устгана. Жишээ хэрэглээ: багц үүсгэж дууссаны дараа хамгийн дээрх загвар мөрийг
+    (template) устгах. Устгахын өмнө тухайн мөрийн агуулгыг буцаадаг тул дуудагч тал
+    юу устгасныг бүртгэж/харуулж чадна.
+
+    row: мөрийн дугаар (1 = хамгийн дээд мөр, scan_jersey_rows-ээр шалгана)."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+
+    def _delete():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("нээлттэй баримт байхгүй")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        all_rows = _build_rows(texts, panels)
+        if not all_rows:
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
+        if row < 1 or row > len(all_rows):
+            raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
+
+        summary = _row_summary(all_rows[row - 1], panels)
+        anchor_y = all_rows[row - 1]["anchor_y"]
+        all_anchors = [r["anchor_y"] for r in all_rows]
+        row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
+        deleted = 0
+        for s in row_shapes:
+            try:
+                s.Delete()
+                deleted += 1
+            except Exception:
+                continue
+        return {"row": row, "deleted_shapes": deleted, "was": summary,
+                "rows_left": len(all_rows) - 1}
+
+    result = conn.safe_call(_delete)
+    if result["success"]:
+        data = result["result"]
+        was = data["was"]
+        return ToolResult.ok(
+            f"{data['row']}-р мөрийг устгав («{was['name']}» #{was['number']}, "
+            f"{data['deleted_shapes']} хэлбэр), үлдсэн {data['rows_left']} мөр",
+            **data,
+        )
+    return ToolResult.fail(result.get("error", "мөр устгахад алдаа гарлаа"))
+
+
+_HEADER_TEXT_HEIGHT = 40.0  # mm，页眉信息文字的字高（够大、一眼能看到，又不会被当成球衣文字）
+
+
+def set_batch_header(info: str) -> ToolResult:
+    """Хуудасны хамгийн дээд талд багцын мэдээллийн гарчиг бичнэ (жишээ нь
+    "ЭМЭГТЭЙ · VOLLEYBALL · 3016 · зай 20mm"). Өмнө нь ийм гарчиг байсан бол
+    агуулгыг нь шинэчилнэ, байгаагүй бол шинээр үүсгэнэ.
+
+    Гарчгийг таних арга: хамгийн дээд джерси мөрнөөс ДЭЭР байрлах, өндөр нь
+    _MIN_TEXT_HEIGHT-ээс их текст — джерсийн мөрүүдэд ердөө хамаарахгүй тул
+    мөр таних логикт саад болохгүй.
+
+    info: бичих мэдээллийн мөр (дуудагч тал хүйс/спорт/материал зэргийг нэгтгэж өгнө)."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+    if not info:
+        return ToolResult.fail("info хоосон байна")
+
+    def _apply():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("нээлттэй баримт байхгүй")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        all_rows = _build_rows(texts, panels)
+        if not all_rows:
+            raise ValueError("当前页面没有找到球衣（找不到成对的面板矩形）")
+
+        # Хамгийн дээд мөрийн бүх хэлбэрийн дээд ирмэг + зай
+        top_anchor = all_rows[0]["anchor_y"]
+        all_anchors = [r["anchor_y"] for r in all_rows]
+        top_shapes = _row_shapes_by_y(doc, top_anchor, all_anchors)
+        top_edge = max(_shape_y_extent(s)[1] for s in top_shapes)
+        left_edge = min(s.PositionX for s in top_shapes)
+        header_y = top_edge + 80.0
+
+        shapes = doc.ActivePage.Shapes
+        existing = None
+        for i in range(1, shapes.Count + 1):
+            s = shapes.Item(i)
+            try:
+                if s.Type == 6 and s.SizeHeight >= _MIN_TEXT_HEIGHT and s.PositionY > top_edge:
+                    existing = s
+                    break
+            except Exception:
+                continue
+
+        if existing is not None:
+            _write_text(existing, info)
+            existing.PositionX, existing.PositionY = left_edge, header_y
+            return {"created": False, "text": info,
+                    "at": (round(left_edge, 1), round(header_y, 1))}
+
+        layer = doc.ActivePage.ActiveLayer
+        shape = None
+        for attempt in (
+            lambda: layer.CreateArtisticText(left_edge, header_y, info, 0, 0, 0, "Arial", 60, False, False, False),
+            lambda: layer.CreateArtisticText(left_edge, header_y, info),
+        ):
+            try:
+                shape = attempt()
+                break
+            except Exception:
+                continue
+        if shape is None:
+            raise RuntimeError("гарчиг үүсгэж чадсангүй")
+        if shape.SizeHeight > 0:
+            k = _HEADER_TEXT_HEIGHT / shape.SizeHeight
+            shape.SizeWidth = shape.SizeWidth * k
+            shape.SizeHeight = _HEADER_TEXT_HEIGHT
+        shape.PositionX, shape.PositionY = left_edge, header_y
+        return {"created": True, "text": info,
+                "at": (round(left_edge, 1), round(header_y, 1))}
+
+    result = conn.safe_call(_apply)
+    if result["success"]:
+        data = result["result"]
+        verb = "үүсгэв" if data["created"] else "шинэчлэв"
+        return ToolResult.ok(f"Гарчиг {verb}: «{info}»", **data)
+    return ToolResult.fail(result.get("error", "гарчиг бичихэд алдаа гарлаа"))

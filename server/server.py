@@ -137,6 +137,9 @@ def register_tools():
     mcp.add_tool(jersey.set_jersey_material)
     mcp.add_tool(jersey.resize_jersey_row)
     mcp.add_tool(jersey.set_batch_mode)
+    mcp.add_tool(jersey.recenter_jersey_texts)
+    mcp.add_tool(jersey.delete_jersey_row)
+    mcp.add_tool(jersey.set_batch_header)
 
 
 def main():

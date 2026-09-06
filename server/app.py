@@ -26,6 +26,7 @@ from tools.jersey import (
     duplicate_jersey_rows,
     resize_jersey_row,
     scan_jersey_rows,
+    set_batch_header,
     set_batch_mode,
     set_jersey_material,
     set_jersey_players,
@@ -861,6 +862,13 @@ if st.session_state.get("pending_roster"):
                         ) if mat_result.success else 0
                         if not mat_result.success:
                             st.warning(f"Нэр/дугаар бичигдсэн ч материалын шошго амжилтгүй: {mat_result.error}")
+
+                        # Хуудасны дээд талд багцын мэдээллийг бичнэ (хүйс/спорт/материал/зай)
+                        # — хэрэглэгчийн хүсэлт: "is it male, is it volleyball or basketball,
+                        # write this infos on top".
+                        header_bits = [b for b in (gender_tag.upper(), (sport or "").upper(),
+                                                   material, "зай 20mm") if b]
+                        set_batch_header(" · ".join(header_bits))
                         st.success(f"{len(people)} джерси үүсгэж, мэдээллийг бичлээ!")
 
                         # Дуусаад чат руу нэг тайлан бичнэ — хэрэглэгчийн хүсэлт: зөвхөн
