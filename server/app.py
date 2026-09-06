@@ -20,7 +20,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent.runner import SignageAgent
-from tools.jersey import set_jersey_players
+from tools.jersey import duplicate_jersey_rows, scan_jersey_rows, set_jersey_players
 
 
 st.set_page_config(page_title="CorelChamp", page_icon="🏆", layout="wide")
@@ -475,14 +475,18 @@ if st.session_state.get("pending_roster"):
     st.subheader("📋 Зурганаас уншсан өгөгдөл")
     st.caption(
         "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол засаарай. "
-        "Одоогоор зөвхөн нэр/дугаарыг л CorelDRAW руу бичнэ — өргөн/урт зөвхөн лавлагаанд."
+        "«Джерси эхлүүлэх» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
+        "бичнэ (өргөн/урт зөвхөн лавлагаанд, CorelDRAW руу бичихгүй)."
     )
+
+    _GENDER_TAGS = {"": "", "эрэгтэй": "male", "эмэгтэй": "female"}
 
     col_sport, col_gender, col_calc = st.columns([1, 1, 1])
     with col_sport:
         sport = st.selectbox("Спорт", ["", "volleyball", "basketball"], key="roster_sport")
     with col_gender:
-        gender = st.selectbox("Хүйс", ["", "male", "female"], key="roster_gender")
+        gender_tag = st.selectbox("Хүйс", list(_GENDER_TAGS.keys()), key="roster_gender")
+        gender = _GENDER_TAGS[gender_tag]
     with col_calc:
         st.write("")
         if st.button("🧮 Хэмжээ тооцоолох", use_container_width=True):
@@ -510,36 +514,44 @@ if st.session_state.get("pending_roster"):
         key="roster_editor",
     )
 
-    start_row = st.number_input(
-        "Эхлэх мөрийн дугаар (1-р хүн аль мөрөнд очих вэ — scan_jersey_rows-оор шалгаарай)",
-        min_value=1, value=1, step=1, key="roster_start_row",
-    )
-
-    def _roster_updates() -> list[dict]:
+    def _roster_names_numbers() -> list[dict]:
         return [
-            {"row": int(start_row) + i, "name": r.get("name", ""), "number": r.get("number", "")}
-            for i, r in enumerate(edited_roster)
+            {"name": r.get("name", ""), "number": r.get("number", "")}
+            for r in edited_roster
             if r.get("name") or r.get("number")
         ]
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("👁️ Урьдчилан харах", use_container_width=True):
-            result = set_jersey_players(_roster_updates(), dry_run=True)
-            if result.success:
-                st.success(result.message)
-                st.json(result.data)
-            else:
-                st.error(result.error)
+            people = _roster_names_numbers()
+            st.info(f"{len(people)} шинэ джерси үүсгэнэ:")
+            st.json(people)
     with col2:
-        if st.button("✅ CorelDRAW-д бичих", type="primary", use_container_width=True):
-            result = set_jersey_players(_roster_updates(), dry_run=False)
-            if result.success:
-                st.success(result.message)
-                del st.session_state.pending_roster
-                st.rerun()
+        if st.button("🏐 Джерси эхлүүлэх", type="primary", use_container_width=True):
+            people = _roster_names_numbers()
+            if not people:
+                st.error("Хүснэгт хоосон байна — нэр эсвэл дугаар оруулаагүй байна.")
             else:
-                st.error(result.error)
+                # 1-р мөрийг загвар болгож яг хэдэн хүн байгаагаар нь шинэ мөр үүсгэнэ,
+                # дараа нь яг тэр шинэ мөрүүдэд нэр/дугаарыг бичнэ — "эхлэх мөрийн дугаар"
+                # гараар сонгох шаардлагагүй, автоматаар л дараагийн мөрүүдэд очно.
+                before = scan_jersey_rows()
+                total_before = (before.data or {}).get("total", 0) if before.success else 0
+                dup_result = duplicate_jersey_rows(source_row=1, count=len(people))
+                if not dup_result.success:
+                    st.error(dup_result.error)
+                else:
+                    fill_updates = [
+                        {"row": total_before + 1 + i, **p} for i, p in enumerate(people)
+                    ]
+                    fill_result = set_jersey_players(fill_updates, dry_run=False)
+                    if fill_result.success:
+                        st.success(f"{len(people)} джерси үүсгэж, мэдээллийг бичлээ!")
+                        del st.session_state.pending_roster
+                        st.rerun()
+                    else:
+                        st.error(fill_result.error)
     with col3:
         if st.button("❌ Цуцлах", use_container_width=True):
             del st.session_state.pending_roster
