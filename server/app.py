@@ -259,22 +259,27 @@ if submission:
             st.image(uri, width=250)
         st.markdown(prompt_text)
 
-    agent: SignageAgent = st.session_state.agent
-
-    # 有图片时按当前 provider 拼多模态 content；没有图片时保持原来的纯字符串，兼容不变。
-    # openai 兼容（OpenRouter/Gemini）用 image_url + data URI；anthropic 用 image + base64 source。
+    # Зурагтай бол ЗААВАЛ Gemini-ээр (одоо холбогдсон нь ямар ч provider байсан хамаагүй) —
+    # ердийн чат руу холбогдсон загвар (жишээ нь minimax-m3:free) зураг ойлгож чаддаггүй нь
+    # баталгаажсан (улаан зурган дээр "Black" гэж хариулж байсан). Зургийн текстийн санал
+    # асуулга бус ердийн харилцаа хэвээрээ session_state.agent-аар явна.
     if uploaded_images:
-        if st.session_state.provider == "anthropic":
-            content_blocks = [{"type": "text", "text": prompt_text}] + [
-                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}}
-                for mime, b64 in uploaded_images
-            ]
-        else:
-            content_blocks = [{"type": "text", "text": prompt_text}] + [
-                {"type": "image_url", "image_url": {"url": uri}} for uri in data_uris
-            ]
+        if "_vision_agent" not in st.session_state:
+            try:
+                st.session_state._vision_agent = SignageAgent(
+                    provider="openai", model="gemini-3.1-flash-lite",
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                )
+            except Exception as e:
+                st.error(f"Gemini-тэй холбогдож чадсангүй (GEMINI_API_KEY шалгана уу): {e}")
+                st.stop()
+        agent: SignageAgent = st.session_state._vision_agent
+        content_blocks = [{"type": "text", "text": prompt_text}] + [
+            {"type": "image_url", "image_url": {"url": uri}} for uri in data_uris
+        ]
         agent_input = content_blocks
     else:
+        agent: SignageAgent = st.session_state.agent
         agent_input = prompt_text
 
     # 运行 Agent，实时渲染事件 —— 思考/工具调用放进可折叠的 status（真正的"加载中"效果），
