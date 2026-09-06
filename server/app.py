@@ -623,6 +623,31 @@ if st.session_state.get("pending_roster"):
     if not material:
         st.caption("⚠️ Материал/fabric оруулаагүй байна — «Start Jersey» дарахад заавал хэрэгтэй.")
 
+    # CorelDRAW-д яг ямар джерси мөр(үүд) байгааг үргэлж эхлээд ЭНД ИЛЭРХИЙ илрүүлж,
+    # харуулж, хэрэглэгчээр батлуулна — урьд нь source_row=1-ийг чимээгүй таамагласнаас болж
+    # хэрэглэгчийн жинхэнэ бэлдсэн джерсийг олж чадаагүй асуудал давтагдахгүйн тулд.
+    template_scan = scan_jersey_rows()
+    scan_rows = (template_scan.data or {}).get("rows", []) if template_scan.success else []
+    source_row = None
+    if scan_rows:
+        row_labels = [f"Мөр {r['row']}: {r['team']} / {r['name']} #{r['number']}" for r in scan_rows]
+        # Анхны сонголт: "TEAM"/"NAME" гэсэн жинхэнэ бус placeholder биш мөрийг илүүд үзнэ —
+        # гэхдээ энэ зөвхөн анхны сонголт, хэрэглэгч доороос үргэлж өөрчилж болно.
+        default_idx = next(
+            (i for i, r in enumerate(scan_rows) if r["team"] != "TEAM" and r["name"] != "NAME"), 0
+        )
+        chosen_label = st.selectbox(
+            "🎯 Загвар джерси (CorelDRAW-с илрүүлсэн, үүнээс хуулбарлаж шинэ мөр үүсгэнэ)",
+            row_labels,
+            index=default_idx,
+            key="jersey_source_row_label",
+        )
+        source_row = scan_rows[row_labels.index(chosen_label)]["row"]
+        if len(scan_rows) > 1:
+            st.caption(f"⚠️ CorelDRAW-д нийт {len(scan_rows)} мөр илэрлээ — дээрээс зөв загвараа сонгосон эсэхээ шалгаарай.")
+    else:
+        st.error("⚠️ CorelDRAW-с ямар ч джерси мөр (REF_* нэртэй объект) илэрсэнгүй. Эхлээд загвар нэг мөр бэлдэнэ үү — «Start Jersey» ажиллахгүй.")
+
     edited_roster = st.data_editor(
         st.session_state.pending_roster,
         num_rows="dynamic",
@@ -722,13 +747,15 @@ if st.session_state.get("pending_roster"):
                 st.error("Хүснэгт хоосон байна — нэр эсвэл дугаар оруулаагүй байна.")
             elif not material:
                 st.error("Материал/fabric оруулаагүй байна — дээрх талбарт бичээд дахин дарна уу.")
+            elif source_row is None:
+                st.error("Загвар джерси илрээгүй тул үүсгэх боломжгүй — дээрх алдааг үзнэ үү.")
             else:
-                # 1-р мөрийг загвар болгож яг хэдэн хүн байгаагаар нь шинэ мөр үүсгэнэ,
-                # дараа нь яг тэр шинэ мөрүүдэд нэр/дугаарыг бичнэ — "эхлэх мөрийн дугаар"
-                # гараар сонгох шаардлагагүй, автоматаар л дараагийн мөрүүдэд очно.
+                # Дээрээс хэрэглэгчийн сонгосон (эсвэл автоматаар илрүүлсэн) жинхэнэ загвар
+                # мөрийг хуулбарлаж яг хэдэн хүн байгаагаар нь шинэ мөр үүсгэнэ, дараа нь яг
+                # тэр шинэ мөрүүдэд нэр/дугаарыг бичнэ.
                 before = scan_jersey_rows()
                 total_before = (before.data or {}).get("total", 0) if before.success else 0
-                dup_result = duplicate_jersey_rows(source_row=1, count=len(people))
+                dup_result = duplicate_jersey_rows(source_row=source_row, count=len(people))
                 if not dup_result.success:
                     st.error(dup_result.error)
                 else:
