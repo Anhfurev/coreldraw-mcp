@@ -99,12 +99,6 @@ def _load_corrections() -> list[dict]:
     return out
 
 
-def _save_correction(entry: dict) -> None:
-    _CORRECTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_CORRECTIONS_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-
 def _lookup_correction(
     height_cm: float, weight_kg: float, gender: str, sport: str, field: str,
     height_tol: float = 3.0,
@@ -117,8 +111,7 @@ def _lookup_correction(
       - зорилтот жингийн ДООД ба ДЭЭД талд бодит цэг олдвол хоёуланг нь шугаман
         интерполяци хийнэ (жишээ 169см: 50кг→112, 62кг→118 гэдгээс 56кг-г ~115 гэж гаргана)
       - зөвхөн нэг тал байвал (жин хэт бага/их) хамгийн ойр цэгийн утгыг шууд ашиглана
-        (нэг талын мэдээллээр хэтрүүлж таамаглах — яг биш ч хоосноос дээр, хэрэглэгч
-        буруу бол хүснэгтэд шууд засаад дахин хадгалж болно)
+        (нэг талын мэдээллээр хэтрүүлж таамаглах — яг биш ч хоосноос дээр)
       - тухайн өндрийн орчимд (±3см дотор) ЯМАР Ч бодит цэг байхгүй бол л None буцаана
         (жишээ 190см — 164/169/170-аас хэт хол, тохирохгүй)."""
     candidates = []
@@ -589,7 +582,7 @@ if st.session_state.get("pending_roster"):
     st.divider()
     st.subheader("📋 Зурганаас уншсан өгөгдөл")
     st.caption(
-        "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол засаарай. "
+        "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс харж шалгаарай. "
         "«Start Jersey» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
         "бичнэ (өргөн/урт зөвхөн лавлагаанд, CorelDRAW руу бичихгүй)."
     )
@@ -648,88 +641,33 @@ if st.session_state.get("pending_roster"):
     else:
         st.error("⚠️ CorelDRAW-с ямар ч джерси мөр (REF_* нэртэй объект) илэрсэнгүй. Эхлээд загвар нэг мөр бэлдэнэ үү — «Start Jersey» ажиллахгүй.")
 
-    edited_roster = st.data_editor(
-        st.session_state.pending_roster,
-        num_rows="dynamic",
-        use_container_width=True,
-        key="roster_editor",
-        column_order=["name", "number", "length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"],
-        # Багана бүрийн төрлийг тодорхой заана — Streamlit-д өөрөө таниулбал (ялангуяа нэг
-        # багана дотор хоосон None ба бодит тоо холилдох үед) зарим нүд засварлагдахгүй
-        # болох тохиолдол гардаг тул илэрхий зааж өгвөл найдвартай.
-        column_config={
-            "name": st.column_config.TextColumn("name"),
-            "number": st.column_config.TextColumn("number"),
-            "length_cm": st.column_config.NumberColumn("length_cm"),
-            "width_cm": st.column_config.NumberColumn("width_cm"),
-            "height_cm": st.column_config.NumberColumn("height_cm"),
-            "weight_kg": st.column_config.NumberColumn("weight_kg"),
-            "chest_cm": st.column_config.NumberColumn("chest_cm"),
-        },
-    )
-
-    # st.data_editor өөрөө нүдийг өнгөлж чадахгүй (canvas дээр зурагддаг тул CSS хүрэхгүй,
-    # NumberColumn-д ч background/color параметр байхгүй) тул засварлах боломжтой хүснэгтийн
-    # ДООР зөвхөн харуулах зориулалттай, length/width-ийг цэнхэр текстээр будсан preview
-    # хүснэгт нэмж өгнө (pandas Styler ашиглан, энэ нь жинхэнэ HTML тул өнгө хэрэгжинэ).
-    if edited_roster:
-        preview_cols = ["name", "number", "length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"]
-        preview_df = pd.DataFrame(edited_roster)
+    # Хэрэглэгчийн тодорхой хүсэлтээр: засварлах боломжтой "эхний хүснэгт"-ийг больж,
+    # зөвхөн цэнхэр өнгөтэй харах хүснэгт нэгийг л үлдээв (нүдээр нь шууд бичиж засах
+    # боломж алга болсон — АИ-ийн уншсан утга буруу бол дахин зурган илгээх/чатаар засуулах
+    # хэрэгтэй; хуучин "гараар засварласан утгыг сурч санах" функц ч үүнтэй хамт хасагдсан).
+    roster = st.session_state.pending_roster
+    if roster:
+        # Хэрэглэгчийн дараалал: нэр → цээж/урт/өргөн (нэрний ард) → өндөр/жин → дугаар (СҮҮЛД).
+        preview_cols = ["name", "chest_cm", "length_cm", "width_cm", "height_cm", "weight_kg", "number"]
+        preview_df = pd.DataFrame(roster)
         for c in preview_cols:
             if c not in preview_df.columns:
                 preview_df[c] = None
         preview_df = preview_df[preview_cols]
-        num_cols = ["length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"]
+        num_cols = ["chest_cm", "length_cm", "width_cm", "height_cm", "weight_kg"]
         styled = (
             preview_df.style
             .format({c: "{:g}".format for c in num_cols}, na_rep="—")
             .map(lambda _: "color: #1a73e8; font-weight: 600;", subset=["length_cm", "width_cm"])
         )
-        st.caption("Урьдчилан харах (length/width цэнхэр өнгөтэй):")
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     def _roster_names_numbers() -> list[dict]:
         return [
             {"name": r.get("name", ""), "number": r.get("number", "")}
-            for r in edited_roster
+            for r in roster
             if r.get("name") or r.get("number")
         ]
-
-    def _save_edited_size_corrections() -> int:
-        """Хэрэглэгч хүснэгтэд гараар засварласан (томьёо/өмнөх засвараас өөр) өргөн/уртыг
-        хадгална — дараа удаа ижил өндөр/жинтэй хүн ирвэл эхлээд эдгээрийг ашиглана.
-        Буцаана: хэдэн мөр хадгалагдсан."""
-        def _num(v):
-            try:
-                return float(v or 0)
-            except (TypeError, ValueError):
-                return 0
-
-        saved = 0
-        for r in edited_roster:
-            h, wt, c = _num(r.get("height_cm")), _num(r.get("weight_kg")), _num(r.get("chest_cm"))
-            if h <= 0 or not gender or not sport:
-                continue
-            entry = {"height_cm": h, "weight_kg": wt or None, "chest_cm": c or None,
-                      "gender": gender, "sport": sport}
-            changed = False
-            edited_w = r.get("width_cm")
-            if edited_w not in (None, "") and edited_w != _compute_jersey_width(h, gender, sport, weight_kg=wt):
-                entry["width_cm"] = float(edited_w)
-                changed = True
-            edited_l = r.get("length_cm")
-            if edited_l not in (None, "") and edited_l != _compute_jersey_length(h, wt, gender, sport):
-                l_val = float(edited_l)
-                even_val = _round_to_even(l_val)
-                if even_val != l_val:
-                    st.warning(f"Урт {l_val} сондгой тоо байсан тул {even_val} болгож хадгаллаа "
-                               f"(урт заавал тэгш тоо байх дүрмийн дагуу).")
-                entry["length_cm"] = even_val
-                changed = True
-            if changed:
-                _save_correction(entry)
-                saved += 1
-        return saved
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -739,9 +677,6 @@ if st.session_state.get("pending_roster"):
             st.json(people)
     with col2:
         if st.button("🏐 Start Jersey", type="primary", use_container_width=True):
-            n_saved = _save_edited_size_corrections()
-            if n_saved:
-                st.toast(f"📏 {n_saved} хэмжээний засвар хадгалагдлаа — дараа ижил хүн ирвэл ашиглана")
             people = _roster_names_numbers()
             if not people:
                 st.error("Хүснэгт хоосон байна — нэр эсвэл дугаар оруулаагүй байна.")
