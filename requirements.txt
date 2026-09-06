@@ -16,6 +16,9 @@ pandas>=2.0.0
 openpyxl>=3.1.0
 xlrd>=2.0.0
 
+# Streamlit UI (app.py) — editable + per-column colored table
+streamlit-aggrid>=1.2.0
+
 # Barcode & QR
 qrcode[pil]>=7.4.0
 python-barcode>=0.15.0

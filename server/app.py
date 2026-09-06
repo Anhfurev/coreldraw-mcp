@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, GridUpdateMode
 
 # 读取 .env，侧边栏的 API Key 留空时即可回退到环境变量（与 server.py 行为一致）
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -566,6 +567,9 @@ if submission:
                     r.setdefault("width_cm", None)
                     r.setdefault("length_cm", None)
                 st.session_state.pending_roster = roster
+                # Шинэ зурган роостер ирсэн тул доорх AgGrid-ийг бүрэн шинээр ачаалуулна
+                # (өмнөх зургийн хүмүүсийн дотоод grid төлөв үлдэхгүйн тулд).
+                st.session_state.roster_grid_version = st.session_state.get("roster_grid_version", 0) + 1
         elif final_event:
             msg = f"❌ {final_event['message']}"
             st.error(msg)
@@ -582,7 +586,7 @@ if st.session_state.get("pending_roster"):
     st.divider()
     st.subheader("📋 Зурганаас уншсан өгөгдөл")
     st.caption(
-        "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс харж шалгаарай. "
+        "AI-ийн уншсан нэр/дугаар/өндөр/жин/цээж — эндээс шалгаад буруу бол нүд дээр дараад засаарай. "
         "«Start Jersey» дарахад энэ хүснэгт дэх хүн бүрт шинэ джерси үүсгэж нэр/дугаарыг "
         "бичнэ (өргөн/урт зөвхөн лавлагаанд, CorelDRAW руу бичихгүй)."
     )
@@ -610,6 +614,11 @@ if st.session_state.get("pending_roster"):
                 h, wt = _num(r.get("height_cm")), _num(r.get("weight_kg"))
                 r["width_cm"] = _compute_jersey_width(h, gender, sport, weight_kg=wt)
                 r["length_cm"] = _compute_jersey_length(h, wt, gender, sport)
+            # Гаднаас (Python талаас) roster-ийг өөрчилсөн тул AgGrid-ийг доор шинэ
+            # утгуудаар ЭХЛЭЭД ачаалуулахын тулд түүний key-г өөрчилнө — key өөрчлөгдөхгүй
+            # бол AgGrid хуучин (component-ийн өөрийн санаж байгаа) утгаа буцаад бичих нь
+            # тестээр батлагдсан bug (доорх тайлбарыг үз).
+            st.session_state.roster_grid_version = st.session_state.get("roster_grid_version", 0) + 1
             st.rerun()
     if not sport or not gender:
         st.caption("⚠️ Спорт/хүйс сонгоогүй тул өргөн тооцохгүй (буруу таамаглахаас зайлсхийв).")
@@ -641,10 +650,10 @@ if st.session_state.get("pending_roster"):
     else:
         st.error("⚠️ CorelDRAW-с ямар ч джерси мөр (REF_* нэртэй объект) илэрсэнгүй. Эхлээд загвар нэг мөр бэлдэнэ үү — «Start Jersey» ажиллахгүй.")
 
-    # Хэрэглэгчийн тодорхой хүсэлтээр: засварлах боломжтой "эхний хүснэгт"-ийг больж,
-    # зөвхөн цэнхэр өнгөтэй харах хүснэгт нэгийг л үлдээв (нүдээр нь шууд бичиж засах
-    # боломж алга болсон — АИ-ийн уншсан утга буруу бол дахин зурган илгээх/чатаар засуулах
-    # хэрэгтэй; хуучин "гараар засварласан утгыг сурч санах" функц ч үүнтэй хамт хасагдсан).
+    # st.data_editor өөрөө нүдийг өнгөлж чадахгүй (canvas дээр зурагддаг тул CSS хүрэхгүй) —
+    # харин st.data_editor-ийг бүрэн хасахад засварлах боломж алга болдог тул үүний оронд
+    # streamlit-aggrid ашиглаж, ЗАСВАРЛАХ БОЛОМЖТОЙ, length/width баганыг нь цэнхэр өнгөтэй
+    # ганц хүснэгт л үлдээв (хэрэглэгчийн хүсэлт: "we need to edit" + "just need blue colored table").
     roster = st.session_state.pending_roster
     if roster:
         # Хэрэглэгчийн дараалал: нэр → цээж/урт/өргөн (нэрний ард) → өндөр/жин → дугаар (СҮҮЛД).
@@ -654,17 +663,42 @@ if st.session_state.get("pending_roster"):
             if c not in preview_df.columns:
                 preview_df[c] = None
         preview_df = preview_df[preview_cols]
-        num_cols = ["chest_cm", "length_cm", "width_cm", "height_cm", "weight_kg"]
-        styled = (
-            preview_df.style
-            .format({c: "{:g}".format for c in num_cols}, na_rep="—")
-            .map(lambda _: "color: #1a73e8; font-weight: 600;", subset=["length_cm", "width_cm"])
+
+        _BLUE_STYLE = {"color": "#1a73e8", "fontWeight": "600"}
+        gb = GridOptionsBuilder.from_dataframe(preview_df)
+        gb.configure_default_column(editable=True, resizable=True, minWidth=110)
+        gb.configure_column("length_cm", cellStyle=_BLUE_STYLE)
+        gb.configure_column("width_cm", cellStyle=_BLUE_STYLE)
+        gb.configure_grid_options(domLayout="autoHeight", stopEditingWhenCellsLoseFocus=True)
+
+        # reload_data=True биш, харин key-г "roster_grid_version" тоолуураар хувиргана:
+        # тестээр батлагдсан bug — reload_data=True бол хэрэглэгч өөрөө нүдэнд бичиж буй
+        # ЗАСВАР нь AgGrid-ийн буцаах утганд орохгүй, учир нь тухайн rerun дотор Python
+        # талын preview_df хараахан шинэчлэгдээгүй хуучин утгаараа AgGrid рүү дахин "props"
+        # болгож бичигдэж, хэрэглэгчийн дөнгөж хийсэн засвар дээгүүр давхар бичигддэг.
+        # Харин key ЗӨВХӨН "Хэмжээ тооцоолох" мэт ГАДНААС (Python талаас) roster-ийг
+        # өөрчилсөн үед л өөрчлөгддөг тул энгийн нүд засах үед грид өөрийн дотоод төлөвөө
+        # хадгалж, зөв утгаа буцаана; харин тооцоолсны дараа шинэ key-тэй бүрэн шинээр
+        # ачаалж шинэ утгуудыг зөв харуулна.
+        grid_version = st.session_state.get("roster_grid_version", 0)
+        grid_response = AgGrid(
+            preview_df,
+            gridOptions=gb.build(),
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            fit_columns_on_grid_load=False,
+            allow_unsafe_jscode=False,
+            key=f"roster_aggrid_v{grid_version}",
         )
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+        roster = grid_response["data"].to_dict("records")
+        st.session_state.pending_roster = roster
 
     def _roster_names_numbers() -> list[dict]:
         return [
-            {"name": r.get("name", ""), "number": r.get("number", "")}
+            # Джерси дээр нэрийг үргэлж том үсгээр бичнэ (жишээ нь "Anu" → "ANU") —
+            # хэрэглэгчийн тодорхой хүсэлт; хүснэгтэд харуулж буй бичлэгийг өөрчлөхгүй,
+            # зөвхөн CorelDRAW руу бичихдээ л том үсэгжүүлнэ.
+            {"name": str(r.get("name", "")).upper(), "number": r.get("number", "")}
             for r in roster
             if r.get("name") or r.get("number")
         ]
