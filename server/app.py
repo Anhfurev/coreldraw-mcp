@@ -69,10 +69,10 @@ Then, ALWAYS output a fenced JSON code block — even if you truly find no playe
 can see in the photo:
 
 ```json
-[{"name": "...", "number": "...", "height_cm": "...", "weight_kg": "...", "chest_cm": "..."}]
+[{"name": "...", "number": "...", "height_cm": "...", "weight_kg": "...", "chest_cm": "...", "shoulder_cm": "..."}]
 ```
 
-height_cm/weight_kg/chest_cm are numbers as plain strings (e.g. "170"), not text like "170cm".
+height_cm/weight_kg/chest_cm/shoulder_cm are numbers as plain strings (e.g. "170"), not text like "170cm".
 Leave any field as an empty string "" if it is not visible. Never skip this block — a human
 will review it in an editable table before anything is written to production, specifically
 to catch cases where you misread a name or number."""
@@ -562,7 +562,7 @@ if submission:
                 # тоо холилдож st.data_editor-ийн багана төрөл таних логикийг эвдэж, зарим
                 # нүд засварлагдахгүй/хачин харагдах шалтгаан болдог.
                 for r in roster:
-                    for key in ("height_cm", "weight_kg", "chest_cm"):
+                    for key in ("height_cm", "weight_kg", "chest_cm", "shoulder_cm"):
                         r[key] = _to_num(r.get(key))
                     r.setdefault("width_cm", None)
                     r.setdefault("length_cm", None)
@@ -656,8 +656,8 @@ if st.session_state.get("pending_roster"):
     # ганц хүснэгт л үлдээв (хэрэглэгчийн хүсэлт: "we need to edit" + "just need blue colored table").
     roster = st.session_state.pending_roster
     if roster:
-        # Хэрэглэгчийн дараалал: нэр → цээж/урт/өргөн (нэрний ард) → өндөр/жин → дугаар (СҮҮЛД).
-        preview_cols = ["name", "chest_cm", "length_cm", "width_cm", "height_cm", "weight_kg", "number"]
+        # Хэрэглэгчийн дараалал: нэр → цээж/мөрний урт/урт/өргөн (нэрний ард) → өндөр/жин → дугаар (СҮҮЛД).
+        preview_cols = ["name", "chest_cm", "shoulder_cm", "length_cm", "width_cm", "height_cm", "weight_kg", "number"]
         preview_df = pd.DataFrame(roster)
         for c in preview_cols:
             if c not in preview_df.columns:
