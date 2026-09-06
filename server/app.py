@@ -627,15 +627,22 @@ if st.session_state.get("pending_roster"):
         num_rows="dynamic",
         use_container_width=True,
         key="roster_editor",
-        column_order=["name", "number", "width_cm", "length_cm", "height_cm", "weight_kg", "chest_cm"],
+        column_order=["name", "number", "length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"],
         # Багана бүрийн төрлийг тодорхой заана — Streamlit-д өөрөө таниулбал (ялангуяа нэг
         # багана дотор хоосон None ба бодит тоо холилдох үед) зарим нүд засварлагдахгүй
         # болох тохиолдол гардаг тул илэрхий зааж өгвөл найдвартай.
+        #
+        # Санамж: length_cm/width_cm-ийг НҮДЭЭР нь өнгөтэй (жишээ нь цэнхэр дэвсгэртэй)
+        # харуулах хүсэлт байсан ч st.data_editor-ийн грид canvas дээр зурагддаг (жинхэнэ
+        # DOM элемент биш) тул нүд тус бүрийг CSS-ээр өнгөлөх боломжгүй, мөн NumberColumn
+        # config-д background/color гэсэн параметр байхгүй (Streamlit-ийн албан ёсны API-г
+        # шалгаж баталгаажуулсан). Ойрын боломжит шийдэл болгож толгой мөрөнд 🔵 тэмдэг
+        # нэмж эдгээр хоёр баганыг тусгаарлав.
         column_config={
             "name": st.column_config.TextColumn("name"),
             "number": st.column_config.TextColumn("number"),
-            "width_cm": st.column_config.NumberColumn("width_cm"),
-            "length_cm": st.column_config.NumberColumn("length_cm"),
+            "length_cm": st.column_config.NumberColumn("🔵 length_cm"),
+            "width_cm": st.column_config.NumberColumn("🔵 width_cm"),
             "height_cm": st.column_config.NumberColumn("height_cm"),
             "weight_kg": st.column_config.NumberColumn("weight_kg"),
             "chest_cm": st.column_config.NumberColumn("chest_cm"),
