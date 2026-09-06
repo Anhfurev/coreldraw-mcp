@@ -140,6 +140,7 @@ def register_tools():
     mcp.add_tool(jersey.recenter_jersey_texts)
     mcp.add_tool(jersey.delete_jersey_row)
     mcp.add_tool(jersey.set_batch_header)
+    mcp.add_tool(jersey.compact_jersey_rows)
 
 
 def main():

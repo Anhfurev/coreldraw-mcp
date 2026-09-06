@@ -856,16 +856,19 @@ if st.session_state.get("pending_roster"):
                             {"role": "assistant", "content": f"❌ Нэр/дугаар бичиж чадсангүй: {fill_result.error}"}
                         )
                     else:
-                        mat_result = set_jersey_material(new_rows, material)
+                        # Хэрэглэгчийн тодорхой хүсэлт: хүйс/спорт/материалыг мөр БҮРТ (жижиг
+                        # шошгонд, "3016" шиг) бичнэ — зөвхөн хуудасны дээд талд НЭГ удаа биш.
+                        row_label_bits = [b for b in (gender_tag.upper(), (sport or "").upper(), material) if b]
+                        row_label = " · ".join(row_label_bits) if row_label_bits else material
+                        mat_result = set_jersey_material(new_rows, row_label)
                         labels_written = sum(
                             r.get("labels_updated", 0) for r in (mat_result.data or {}).get("results", [])
                         ) if mat_result.success else 0
                         if not mat_result.success:
                             st.warning(f"Нэр/дугаар бичигдсэн ч материалын шошго амжилтгүй: {mat_result.error}")
 
-                        # Хуудасны дээд талд багцын мэдээллийг бичнэ (хүйс/спорт/материал/зай)
-                        # — хэрэглэгчийн хүсэлт: "is it male, is it volleyball or basketball,
-                        # write this infos on top".
+                        # Хуудасны дээд талд БАС нэг товч гарчиг бичнэ (ерөнхий тойм харахад
+                        # хялбар байх зорилготой, мөр бүрийн шошгыг орлохгүй, нэмэлт).
                         header_bits = [b for b in (gender_tag.upper(), (sport or "").upper(),
                                                    material, "зай 20mm") if b]
                         set_batch_header(" · ".join(header_bits))

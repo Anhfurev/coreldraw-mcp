@@ -130,6 +130,24 @@ def _collect(doc) -> tuple[list[dict], list[dict]]:
     return texts, panels
 
 
+def _snap_text_to_panel_bottom(shape, panel) -> Optional[float]:
+    """Текст өөрийн панелийн доод ирмэгээс доош унжсан бол дээш нь панелийн доод ирмэгтэй
+    яг тулгаж шилжүүлнэ (өндөр/хэмжээ огт хөндөгдөхгүй, зөвхөн Y байрлал). Хэдэн мм дээш
+    шилжүүлснийг буцаана, шилжүүлээгүй бол None.
+
+    Яагаад хэрэгтэй вэ (2026-09-06 олдсон бодит алдаа): нэг жинхэнэ мөрийн текст (жишээ нь
+    REF_FRONT_NUM) өөрийн панелийн доод ирмэгээс 307mm ч гэсэн доош унжиж байсан — ганц
+    мөрийн хувьд харагдахгүй ч, duplicate_jersey_rows мөр хоорондын зайг "мөрийн БҮХ
+    хэлбэрийн жинхэнэ доод цэг" дээр үндэслэн тооцдог тул энэ нь "20mm зай" дүрмийг зөв
+    мөрдсөн ч ЖИНХЭНЭ ПАНЕЛЬ хоорондын хоосон зайг зуу гаруй мм болгож хувиргадаг байсан
+    (хэрэглэгч "gap too much" гэж мэдээлсэн шалтгаан)."""
+    hang = panel.PositionY - shape.PositionY
+    if hang > 0:
+        shape.PositionY = shape.PositionY + hang
+        return round(hang, 1)
+    return None
+
+
 def _crosshair_center_x(side_shapes) -> Optional[float]:
     """Тухайн талын 十字 тэмдгийг (crosshair, Type != 6) олж, түүний хэвтээ төв X-ийг
     буцаана. Олдохгүй бол None.
@@ -171,6 +189,21 @@ def _row_reference_centers(doc, row_obj: dict, all_anchors: list[float]) -> dict
     return {
         _NAME_FRONT_TEAM: front_ref, _NAME_FRONT_NUM: front_ref,
         _NAME_BACK_NAME: back_ref, _NAME_BACK_NUM: back_ref,
+    }
+
+
+def _row_side_panels(doc, row_obj: dict, all_anchors: list[float]) -> dict:
+    """{key: panel_shape} — тухайн текст аль талд харьяалагдахыг мэдэхийн тулд (нүүр/ар
+    панелийн аль нэгийг нь буцаана). `_snap_text_to_panel_bottom`-д ашиглана."""
+    anchor_y = row_obj["anchor_y"]
+    row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
+    row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+    if len(row_panels) != 2:
+        return {}
+    front_panel, back_panel = sorted(row_panels, key=lambda s: s.PositionX)
+    return {
+        _NAME_FRONT_TEAM: front_panel, _NAME_FRONT_NUM: front_panel,
+        _NAME_BACK_NAME: back_panel, _NAME_BACK_NUM: back_panel,
     }
 
 
@@ -710,6 +743,7 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
                 if s.Type != 6 or _is_material_label(s.SizeWidth, s.SizeHeight):
                     continue  # шошго биш, жинхэнэ 4 текстийг л төвлөрүүлнэ
                 s.PositionX = ref_center - s.SizeWidth / 2
+                _snap_text_to_panel_bottom(s, panel)
 
         _recenter(front_others, front_panel)
         _recenter(back_others, back_panel)
@@ -905,6 +939,7 @@ def recenter_jersey_texts(rows: Optional[list] = None) -> ToolResult:
         for row in targets:
             row_obj = all_rows[row - 1]
             centers = _row_reference_centers(doc, row_obj, all_anchors)
+            side_panels = _row_side_panels(doc, row_obj, all_anchors)
             fixed = []
             if not centers:
                 results.append({"row": row, "fixed": [], "skipped": "2 панель олдсонгүй"})
@@ -925,10 +960,14 @@ def recenter_jersey_texts(rows: Optional[list] = None) -> ToolResult:
                     shrunk = round(shape.SizeWidth, 1)
                 before_offset = round(shape.PositionX + shape.SizeWidth / 2 - center, 2)
                 shape.PositionX = center - shape.SizeWidth / 2
+                panel = side_panels.get(key)
+                hang_fixed = _snap_text_to_panel_bottom(shape, panel) if panel is not None else None
                 entry = {"shape": key, "offset_before": before_offset,
                          "offset_after": round(shape.PositionX + shape.SizeWidth / 2 - center, 2)}
                 if shrunk is not None:
                     entry["name_shrunk_to_mm"] = shrunk
+                if hang_fixed is not None:
+                    entry["moved_up_mm"] = hang_fixed
                 fixed.append(entry)
             results.append({"row": row, "fixed": fixed})
         return {"rows_processed": len(targets), "results": results}
@@ -1070,3 +1109,74 @@ def set_batch_header(info: str) -> ToolResult:
         verb = "үүсгэв" if data["created"] else "шинэчлэв"
         return ToolResult.ok(f"Гарчиг {verb}: «{info}»", **data)
     return ToolResult.fail(result.get("error", "гарчиг бичихэд алдаа гарлаа"))
+
+
+def compact_jersey_rows() -> ToolResult:
+    """Аль хэдийн үүсгэсэн бүх мөрийг ХООРОНДОО _ROW_CLEARANCE (20mm) зайтай болтол
+    ойртуулна — панелийн доод/дээд ирмэгийг л ашиглана, `recenter_jersey_texts`-ийн адил
+    текстийн унжилтад итгэхгүй.
+
+    Яагаад хэрэгтэй вэ: текст панелаасаа хэдэн зуун мм доош унжсан үед
+    duplicate_jersey_rows шинэ мөрийг тухайн (буруу, хэт том) "жинхэнэ хамрах хүрээгээр"
+    зайлуулж байрлуулсан тул мөрүүд хоорондоо 300mm+ хол зайтай болчихсон байсан
+    (`recenter_jersey_texts` зөвхөн текстийг л засдаг тул энэ зайг арилгахгүй, учир нь
+    панель аль хэдийн тэр байрандаа "хатаж" үлдсэн). Энэ функц мөр бүрийг (панель+十字
+    тэмдэг+бичвэр+шошго бүгдийг НЭГ нэгж болгож) дээрээс доош чиглэлд шилжүүлж, зөвхөн
+    панелийн ирмэгүүдийг ашиглан 20mm болтол шахна — эхний (хамгийн дээд) мөр хөдлөхгүй,
+    үлдсэн бүгд доош чиглэлд өөрийн ирэх байрлал руугаа шилжинэ.
+
+    Хэмжээ/агуулга огт хөндөгдөхгүй, зөвхөн Y байрлал (бүхэл мөр = нэг block шилжинэ)."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+
+    def _apply():
+        doc = conn.app.ActiveDocument
+        if doc is None:
+            raise RuntimeError("нээлттэй баримт байхгүй")
+        doc.Unit = _CDR_MILLIMETER
+        texts, panels = _collect(doc)
+        all_rows = _build_rows(texts, panels)
+        if len(all_rows) < 2:
+            return {"rows_processed": len(all_rows), "shifts": []}
+
+        all_anchors = [r["anchor_y"] for r in all_rows]
+        shifts = []
+        # rows[0] = хамгийн дээд мөр — хөдлөхгүй, суурь болно. Дараагийн мөр бүрийг
+        # өмнөх (шинэчлэгдсэн) мөрийн доод ирмэгээс яг 20mm доор байхаар шилжүүлнэ.
+        prev_panel_bottom = None
+        for idx, row_obj in enumerate(all_rows):
+            row_shapes = _row_shapes_by_y(doc, row_obj["anchor_y"], all_anchors)
+            row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+            if len(row_panels) != 2:
+                shifts.append({"row": row_obj["row"], "skipped": f"{len(row_panels)} панель олдлоо"})
+                prev_panel_bottom = None  # дараагийн мөрийг ч найдвартай тооцож чадахгүй тул алгасна
+                continue
+            panel_bottom = min(s.PositionY for s in row_panels)
+            panel_top = max(s.PositionY + s.SizeHeight for s in row_panels)
+
+            if idx == 0 or prev_panel_bottom is None:
+                delta = 0.0
+            else:
+                target_top = prev_panel_bottom - _ROW_CLEARANCE
+                delta = target_top - panel_top
+
+            if abs(delta) > 1e-6:
+                for s in row_shapes:
+                    s.PositionY = s.PositionY + delta
+                panel_bottom += delta
+
+            shifts.append({"row": row_obj["row"], "shifted_up_mm": round(delta, 1)})
+            prev_panel_bottom = panel_bottom
+
+        return {"rows_processed": len(all_rows), "shifts": shifts}
+
+    result = conn.safe_call(_apply)
+    if result["success"]:
+        data = result["result"]
+        total_shift = sum(abs(s.get("shifted_up_mm", 0)) for s in data["shifts"])
+        return ToolResult.ok(
+            f"{data['rows_processed']} мөрийг {_ROW_CLEARANCE}mm зайтай болтол шахав "
+            f"(нийт {round(total_shift, 1)}mm)", **data,
+        )
+    return ToolResult.fail(result.get("error", "мөр шахахад алдаа гарлаа"))
