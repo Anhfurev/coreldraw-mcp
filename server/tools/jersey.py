@@ -654,3 +654,25 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
         total = sum(r["labels_updated"] for r in data["results"])
         return ToolResult.ok(f"{len(rows)} мөрөнд «{material}» гэж {total} шошго бичив", **data)
     return ToolResult.fail(result.get("error", "面料标签写入失败"))
+
+
+def set_batch_mode(enabled: bool) -> ToolResult:
+    """CorelDRAW-ийн дэлгэц дахин зурах (redraw) үйлдлийг цуцлах/сэргээх — олон удаагийн
+    duplicate/resize/set_text зэрэг COM дуудлагыг дараалан хийхэд дэлгэц бүр удаа дахин
+    зурагдахгүй тул хэрэглэгчид "each by each, stopping" мэт удаан санагдахгүй, мэдэгдэхүйц
+    хурдасна. ЗААВАЛ batch эхлэхэд enabled=True, дуусаад (амжилттай ч, алдаатай ч) эцэст нь
+    enabled=False дуудаж СЭРГЭЭХ ёстой — эс тэгвэл CorelDRAW цаашид ч дэлгэц зурахгүй хэвээр
+    үлдэнэ. Энэ функц зөвхөн дэлгэцийн шинэчлэлтэй холбоотой, ямар ч байрлал/хэмжээ тооцоолол
+    өөрчлөхгүй тул бусад функцүүдийн адил эрсдэлгүй."""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW тохирсонгүй")
+
+    def _toggle():
+        conn.app.Optimization = enabled
+        return {"optimization": enabled}
+
+    result = conn.safe_call(_toggle)
+    if result["success"]:
+        return ToolResult.ok(f"batch mode {'идэвхжлээ' if enabled else 'унтарлаа'}", **result["result"])
+    return ToolResult.fail(result.get("error", "batch mode тохируулж чадсангүй"))

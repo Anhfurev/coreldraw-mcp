@@ -136,6 +136,7 @@ def register_tools():
     mcp.add_tool(jersey.duplicate_jersey_rows)
     mcp.add_tool(jersey.set_jersey_material)
     mcp.add_tool(jersey.resize_jersey_row)
+    mcp.add_tool(jersey.set_batch_mode)
 
 
 def main():

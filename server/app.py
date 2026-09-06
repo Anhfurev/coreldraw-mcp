@@ -26,6 +26,7 @@ from tools.jersey import (
     duplicate_jersey_rows,
     resize_jersey_row,
     scan_jersey_rows,
+    set_batch_mode,
     set_jersey_material,
     set_jersey_players,
 )
@@ -89,6 +90,33 @@ to catch cases where you misread a name or number."""
 # Ялангуяа томьёо огт байхгүй хоосон нүдийг хүн гараар бөглөх бүрт энд хадгалагдаад,
 # цаг өнгөрөх тусам жинхэнэ дүрмийг олж мэдэхэд хэрэг болно.
 _CORRECTIONS_PATH = Path(__file__).resolve().parent / "data" / "jersey_size_corrections.jsonl"
+
+# Streamlit-ийн session_state зөвхөн процесс санах ойд байдаг тул код өөрчлөгдөх бүрд
+# (Streamlit процессыг заавал дахин эхлүүлдэг, файл өөрчлөгдөхөд автоматаар reload хийдэггүй
+# модулиуд байдаг) хэрэглэгчийн бүх чат түүх/хүснэгт цөмөөрөө устдаг байсан — үүнийг
+# хэрэглэгч "chat disappeared" гэж мэдээлсэн. Дискэнд хадгалж, дахин эхлэхэд ачаална.
+_SESSION_STATE_PATH = Path(__file__).resolve().parent / "data" / "session_state.json"
+
+
+def _save_session_state() -> None:
+    try:
+        _SESSION_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "messages": st.session_state.get("messages", []),
+            "pending_roster": st.session_state.get("pending_roster"),
+        }
+        _SESSION_STATE_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass  # тогтмол хадгалах боломжгүй ч ажиллагаанд саад болохгүй
+
+
+def _load_session_state() -> dict:
+    if not _SESSION_STATE_PATH.exists():
+        return {}
+    try:
+        return json.loads(_SESSION_STATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def _load_corrections() -> list[dict]:
@@ -280,7 +308,13 @@ st.markdown(
 if "agent" not in st.session_state:
     st.session_state.agent = None
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    # Процесс шинээр эхэлж байгаа тул диск дээрх өмнөх session-ийг сэргээж үзнэ (Streamlit
+    # процессыг дахин эхлүүлэх бүрд санах ойн session_state устдаг, файл дээр хадгалснаар
+    # л дараагийн процесст үлдэнэ).
+    _saved = _load_session_state()
+    st.session_state.messages = _saved.get("messages", [])
+    if _saved.get("pending_roster"):
+        st.session_state.pending_roster = _saved["pending_roster"]
 if "connected" not in st.session_state:
     st.session_state.connected = False
 if "provider" not in st.session_state:
@@ -760,20 +794,28 @@ if st.session_state.get("pending_roster"):
                 new_rows: list[int] = []
                 dup_error = None
                 resize_errors = []
-                for i, (width_cm, length_cm) in enumerate(sizes):
-                    dup_result = duplicate_jersey_rows(source_row=source_row, count=1)
-                    if not dup_result.success:
-                        dup_error = f"{i + 1}-р хүн дээр зогсов: {dup_result.error}"
-                        break
-                    new_row = total_before + 1 + i
-                    new_rows.append(new_row)
-                    # Нэр/дугаар бичихээс ӨМНӨ хэмжээг өөрчилнө — учир нь content бичсэний
-                    # дараа дахин SizeWidth/Height тохируулах ёсгүй (текст дахин суналт болно,
-                    # энэ дүрмийг өмнө нь бодит алдаагаар олж мэдсэн).
-                    if width_cm and length_cm and width_cm > 0 and length_cm > 0:
-                        rsz = resize_jersey_row(new_row, width_cm=width_cm, length_cm=length_cm)
-                        if not rsz.success:
-                            resize_errors.append(f"{new_row}-р мөр: {rsz.error}")
+                # CorelDRAW-ийн дэлгэц шинэ мөр бүрийн дараа дахин зурагдахгүй байхаар
+                # унтраана — олон хүнтэй үед "each by each, stopping" мэт удаан санагдахыг
+                # багасгана. Амжилттай ч, алдаатай ч ЗААВАЛ finally-д сэргээнэ, эс тэгвэл
+                # CorelDRAW цаашид ч дэлгэц шинэчлэхгүй хэвээр үлдэнэ.
+                set_batch_mode(True)
+                try:
+                    for i, (width_cm, length_cm) in enumerate(sizes):
+                        dup_result = duplicate_jersey_rows(source_row=source_row, count=1)
+                        if not dup_result.success:
+                            dup_error = f"{i + 1}-р хүн дээр зогсов: {dup_result.error}"
+                            break
+                        new_row = total_before + 1 + i
+                        new_rows.append(new_row)
+                        # Нэр/дугаар бичихээс ӨМНӨ хэмжээг өөрчилнө — учир нь content бичсэний
+                        # дараа дахин SizeWidth/Height тохируулах ёсгүй (текст дахин суналт болно,
+                        # энэ дүрмийг өмнө нь бодит алдаагаар олж мэдсэн).
+                        if width_cm and length_cm and width_cm > 0 and length_cm > 0:
+                            rsz = resize_jersey_row(new_row, width_cm=width_cm, length_cm=length_cm)
+                            if not rsz.success:
+                                resize_errors.append(f"{new_row}-р мөр: {rsz.error}")
+                finally:
+                    set_batch_mode(False)
                 if resize_errors:
                     st.warning("Зарим мөрийн хэмжээ өөрчлөгдсөнгүй (нэр/дугаар хэвээр бичигдэнэ): "
                                + "; ".join(resize_errors))
@@ -827,3 +869,7 @@ if st.session_state.get("pending_roster"):
         if st.button("❌ Цуцлах", use_container_width=True):
             del st.session_state.pending_roster
             st.rerun()
+
+# Скрипт бүр дуусах бүрд session-ийг диск рүү хадгална — Streamlit процессыг дахин
+# эхлүүлэхэд (код өөрчлөлт хийх бүрд заавал хийдэг) чат түүх/хүснэгт алга болохгүйн тулд.
+_save_session_state()

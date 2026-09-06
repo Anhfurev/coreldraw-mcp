@@ -65,6 +65,9 @@ logs/
 tmp/
 temp/
 
+# Streamlit UI 的会话状态持久化（聊天记录/未完成的表格，纯运行期数据，不进版本控制）
+server/data/session_state.json
+
 # harness 内部状态（session 日志，不对外公开）
 .harness/backup/
 .harness/registry/sessions/
