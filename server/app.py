@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -631,23 +632,36 @@ if st.session_state.get("pending_roster"):
         # Багана бүрийн төрлийг тодорхой заана — Streamlit-д өөрөө таниулбал (ялангуяа нэг
         # багана дотор хоосон None ба бодит тоо холилдох үед) зарим нүд засварлагдахгүй
         # болох тохиолдол гардаг тул илэрхий зааж өгвөл найдвартай.
-        #
-        # Санамж: length_cm/width_cm-ийг НҮДЭЭР нь өнгөтэй (жишээ нь цэнхэр дэвсгэртэй)
-        # харуулах хүсэлт байсан ч st.data_editor-ийн грид canvas дээр зурагддаг (жинхэнэ
-        # DOM элемент биш) тул нүд тус бүрийг CSS-ээр өнгөлөх боломжгүй, мөн NumberColumn
-        # config-д background/color гэсэн параметр байхгүй (Streamlit-ийн албан ёсны API-г
-        # шалгаж баталгаажуулсан). Ойрын боломжит шийдэл болгож толгой мөрөнд 🔵 тэмдэг
-        # нэмж эдгээр хоёр баганыг тусгаарлав.
         column_config={
             "name": st.column_config.TextColumn("name"),
             "number": st.column_config.TextColumn("number"),
-            "length_cm": st.column_config.NumberColumn("🔵 length_cm"),
-            "width_cm": st.column_config.NumberColumn("🔵 width_cm"),
+            "length_cm": st.column_config.NumberColumn("length_cm"),
+            "width_cm": st.column_config.NumberColumn("width_cm"),
             "height_cm": st.column_config.NumberColumn("height_cm"),
             "weight_kg": st.column_config.NumberColumn("weight_kg"),
             "chest_cm": st.column_config.NumberColumn("chest_cm"),
         },
     )
+
+    # st.data_editor өөрөө нүдийг өнгөлж чадахгүй (canvas дээр зурагддаг тул CSS хүрэхгүй,
+    # NumberColumn-д ч background/color параметр байхгүй) тул засварлах боломжтой хүснэгтийн
+    # ДООР зөвхөн харуулах зориулалттай, length/width-ийг цэнхэр текстээр будсан preview
+    # хүснэгт нэмж өгнө (pandas Styler ашиглан, энэ нь жинхэнэ HTML тул өнгө хэрэгжинэ).
+    if edited_roster:
+        preview_cols = ["name", "number", "length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"]
+        preview_df = pd.DataFrame(edited_roster)
+        for c in preview_cols:
+            if c not in preview_df.columns:
+                preview_df[c] = None
+        preview_df = preview_df[preview_cols]
+        num_cols = ["length_cm", "width_cm", "height_cm", "weight_kg", "chest_cm"]
+        styled = (
+            preview_df.style
+            .format({c: "{:g}".format for c in num_cols}, na_rep="—")
+            .map(lambda _: "color: #1a73e8; font-weight: 600;", subset=["length_cm", "width_cm"])
+        )
+        st.caption("Урьдчилан харах (length/width цэнхэр өнгөтэй):")
+        st.dataframe(styled, use_container_width=True, hide_index=True)
 
     def _roster_names_numbers() -> list[dict]:
         return [
