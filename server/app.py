@@ -794,6 +794,10 @@ if st.session_state.get("pending_roster"):
                 new_rows: list[int] = []
                 dup_error = None
                 resize_errors = []
+                # Явцыг харуулах — хэрэглэгч "show progress on website, I don't know the
+                # process, it is being lagged" гэж шаардсан: хүн бүрийн дараа шинэчилнэ.
+                progress_bar = st.progress(0.0)
+                progress_text = st.empty()
                 # CorelDRAW-ийн дэлгэц шинэ мөр бүрийн дараа дахин зурагдахгүй байхаар
                 # унтраана — олон хүнтэй үед "each by each, stopping" мэт удаан санагдахыг
                 # багасгана. Амжилттай ч, алдаатай ч ЗААВАЛ finally-д сэргээнэ, эс тэгвэл
@@ -801,6 +805,8 @@ if st.session_state.get("pending_roster"):
                 set_batch_mode(True)
                 try:
                     for i, (width_cm, length_cm) in enumerate(sizes):
+                        who = people[i].get("name") or people[i].get("number") or f"#{i + 1}"
+                        progress_text.info(f"⏳ {i + 1}/{len(sizes)} — «{who}» джерси үүсгэж байна…")
                         dup_result = duplicate_jersey_rows(source_row=source_row, count=1)
                         if not dup_result.success:
                             dup_error = f"{i + 1}-р хүн дээр зогсов: {dup_result.error}"
@@ -811,18 +817,24 @@ if st.session_state.get("pending_roster"):
                         # дараа дахин SizeWidth/Height тохируулах ёсгүй (текст дахин суналт болно,
                         # энэ дүрмийг өмнө нь бодит алдаагаар олж мэдсэн).
                         #
-                        # Хүснэгтэд байгаа width_cm/length_cm бол ХҮНИЙ БИЕИЙН лавлагаа хэмжээ —
-                        # панелийн бодит хэмжээ рүү хөрвүүлэхэд хэрэглэгчийн өгсөн тодорхой
-                        # томьёо хэрэглэнэ: панелийн өргөн = биеийн өргөн + 7см, панелийн урт =
-                        # биеийн урт ÷ 2 (жишээ нь 68см/112см → 75см/56см).
+                        # Хүснэгтийн width_cm/length_cm бол ХҮНИЙ БИЕИЙН лавлагаа хэмжээ, панелийн
+                        # хэмжээ БИШ. Хэрэглэгчийн өгсөн хөрвүүлэх томьёо (2026-09-06 баталсан):
+                        #     панелийн ӨРГӨН  = length_cm ÷ 2     (жишээ 112 → 56)
+                        #     панелийн ӨНДӨР = width_cm + 7       (жишээ 68  → 75)
+                        # өөрөөр хэлбэл 68/112-той хүн → 56см өргөн × 75см өндөр панель.
+                        # (Эхлээд эсрэгээр нь буруу хийж, панель өргөн нь өндрөөсөө их болж
+                        # джерси биш харагдсан — хэрэглэгч зурган дээр заасны дараа зассан.)
                         if width_cm and length_cm and width_cm > 0 and length_cm > 0:
-                            panel_width_cm = width_cm + 7
-                            panel_length_cm = length_cm / 2
-                            rsz = resize_jersey_row(new_row, width_cm=panel_width_cm, length_cm=panel_length_cm)
+                            panel_width_cm = length_cm / 2
+                            panel_height_cm = width_cm + 7
+                            rsz = resize_jersey_row(new_row, width_cm=panel_width_cm, length_cm=panel_height_cm)
                             if not rsz.success:
                                 resize_errors.append(f"{new_row}-р мөр: {rsz.error}")
+                        progress_bar.progress((i + 1) / len(sizes))
                 finally:
                     set_batch_mode(False)
+                    progress_bar.empty()
+                    progress_text.empty()
                 if resize_errors:
                     st.warning("Зарим мөрийн хэмжээ өөрчлөгдсөнгүй (нэр/дугаар хэвээр бичигдэнэ): "
                                + "; ".join(resize_errors))
@@ -855,20 +867,18 @@ if st.session_state.get("pending_roster"):
                         # энэ хэсэгт л харагдаад ширээ дээрээс алга болчих success/warning
                         # мессежийг чатын түүхэнд бас үлдээх (алгасахгүй, дараа буцаад харах боломжтой).
                         resized_count = sum(1 for w, l in sizes if w and l and w > 0 and l > 0)
+                        labels_created = sum(
+                            r.get("labels_created", 0) for r in (mat_result.data or {}).get("results", [])
+                        ) if mat_result.success else 0
                         summary = (
-                            f"✅ {len(people)} джерси үүсгэж, {source_row}-р мөрийг загвар болгон "
-                            f"{new_rows[0]}-{new_rows[-1]}-р мөрүүдэд нэр/дугаарыг бичлээ. "
-                            f"Материал: «{material}». Хэмжээ: {resized_count}/{len(people)} хүнд "
-                            f"өргөн/уртаар нь панелийг өөрчилсөн"
+                            f"✅ {len(people)} джерси үүсгэлээ ({new_rows[0]}-{new_rows[-1]}-р мөр, "
+                            f"{source_row}-р мөрийг загвар болгосон). "
+                            f"Материал «{material}» — {labels_written} шошгонд бичив"
+                            + (f" ({labels_created}-ыг нь шинээр үүсгэв). " if labels_created else ". ")
+                            + f"Хэмжээ: {resized_count}/{len(people)} хүнд панелийг өөрчилсөн"
                             + (f", {len(people) - resized_count} нь загвар мөрийн хэмжээгээр үлдсэн "
                                "(өргөн/урт тооцоогдоогүй)." if resized_count < len(people) else ".")
                         )
-                        if labels_written == 0:
-                            summary += (
-                                " ⚠️ Гэхдээ загвар мөрд материалын шошго (жижиг текст) огт "
-                                "олдоогүй тул шинэ мөрүүдэд ч материалын шошго бичигдсэнгүй — "
-                                "загвар мөрөндөө эхлээд материалын шошгоо гараар нэмээрэй."
-                            )
                         st.session_state.messages.append({"role": "assistant", "content": summary})
                         del st.session_state.pending_roster
                         st.rerun()

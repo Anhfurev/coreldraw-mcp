@@ -114,12 +114,19 @@ def _collect(doc) -> tuple[list[dict], list[dict]]:
 
 
 def _panel_center_x(panels: list[dict], text: dict) -> Optional[float]:
-    """找到装着这个文字的面板，返回面板的真实几何中心 X"""
+    """找到装着这个文字的面板，返回面板的真实几何中心 X。
+
+    只用 X 方向判断归属，不再要求文字的 Y 也落在面板 Y 范围内 —— 2026-09-06 改的：
+    旧版假设 PositionY 是"顶边"来算文字的垂直中心，但本项目里形状的 Y 基准在"创建"
+    和"重新定位"两类 API 之间本来就不一致（见 backlog 已知约束），而且这个参考件的
+    正面队名/号码本来就故意挂在面板下方几百 mm（用户确认是有意为之，不是错位）。
+    结果是垂直包含判断经常不成立，函数静默返回 None，调用方就跳过了居中——用户看到
+    的"文字没居中"正是这个原因。同一行的正/背面板在 X 方向不重叠，因此单靠 X 就能
+    唯一确定归属，不需要也不应该再卡 Y。"""
     cx = text["x"] + text["w"] / 2
-    cy = text["y"] - text["h"] / 2  # PositionY 是顶边，Y 轴向上
     best = None
     for p in panels:
-        if p["x"] <= cx <= p["x"] + p["w"] and p["y"] - p["h"] <= cy <= p["y"]:
+        if p["x"] <= cx <= p["x"] + p["w"]:
             # 取能装下它的最小面板，避免匹配到更大的外框
             if best is None or p["w"] * p["h"] < best["w"] * best["h"]:
                 best = p
@@ -633,14 +640,49 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
     return ToolResult.fail(result.get("error", "джерси хэмжээ өөрчлөхөд алдаа гарлаа"))
 
 
+_MATERIAL_LABEL_HEIGHT = 8.0  # mm，面料标签的字高（沿用参考件里那个"3016"小标签的尺寸）
+_MATERIAL_LABEL_MARGIN = 10.0  # mm，标签相对面板左下角的偏移
+
+
+def _create_material_label(doc, panel, content: str):
+    """在给定面板的左下角附近新建一个小的面料标签文字（高度 8mm，低于 _MIN_TEXT_HEIGHT，
+    因此不会被误判成球衣的 4 个正式文字）。参考件本来就没有标签时用它自动补上——
+    用户明确要求"你自己创建那个小标签，别再让我手动加"。"""
+    layer = doc.ActivePage.ActiveLayer
+    x = panel.PositionX + _MATERIAL_LABEL_MARGIN
+    y = panel.PositionY + _MATERIAL_LABEL_MARGIN
+    shape = None
+    for attempt in (
+        lambda: layer.CreateArtisticText(x, y, content, 0, 0, 0, "Arial", 20, False, False, False),
+        lambda: layer.CreateArtisticText(x, y, content),
+    ):
+        try:
+            shape = attempt()
+            break
+        except Exception:
+            continue
+    if shape is None:
+        return None
+    cur_h = shape.SizeHeight
+    if cur_h > 0:
+        scale = _MATERIAL_LABEL_HEIGHT / cur_h
+        shape.SizeWidth = shape.SizeWidth * scale
+        shape.SizeHeight = _MATERIAL_LABEL_HEIGHT
+    shape.PositionX, shape.PositionY = x, y
+    return shape
+
+
 def set_jersey_material(rows: list, material: str) -> ToolResult:
     """把面料/材质代码写进指定几行球衣的面料标签（每行正/背各一个小标签，即之前发现的
     那个误继承了 REF_BACK_NAME 名字的 30x10mm 小文字，例如之前的示例"3016"）。
     按 Y 坐标 + 高度 < 20mm 识别这些标签（同 _collect 排除小标签的判断依据一致，反过来
     专门找它们），不依赖名称——名称本身不可靠，见模块顶部说明。
 
-    rows: 行号列表（1 = 页面最上面那件），对这些行的全部面料标签统一写入同一个 material。
-    找不到面料标签的行会在返回结果里标记 skipped，不会报错中断其它行。"""
+    某一行根本没有面料标签时，会在该行两个面板的左下角各**自动新建**一个（2026-09-06
+    加的，用户明确要求"你自己创建那个小标签，别再让我手动加"）——以前只是返回
+    labels_updated=0 并提示用户自己去加，用户重复反馈了很多次。
+
+    rows: 行号列表（1 = 页面最上面那件），对这些行的全部面料标签统一写入同一个 material。"""
     conn = get_connection()
     if not conn.status.connected:
         return ToolResult.fail("CorelDRAW 未连接")
@@ -679,6 +721,18 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
                 if shape_type != 6 or h >= _MIN_TEXT_HEIGHT:
                     continue  # текст биш, эсвэл 4 үндсэн текстийн нэг (~30x10mm биш)
                 labels.append(s)
+
+            created = 0
+            if not labels:
+                # Энэ мөрөнд шошго огт байхгүй бол панель тус бүрд нэгийг ӨӨРӨӨ үүсгэнэ
+                # (хэрэглэгчээс гараар нэмээрэй гэж гуйхаа болино).
+                row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
+                for panel in sorted(row_panels, key=lambda s: s.PositionX):
+                    new_label = _create_material_label(doc, panel, material)
+                    if new_label is not None:
+                        labels.append(new_label)
+                        created += 1
+
             written = 0
             for s in labels:
                 try:
@@ -686,14 +740,16 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
                     written += 1
                 except Exception:
                     continue
-            results.append({"row": row, "labels_updated": written})
+            results.append({"row": row, "labels_updated": written, "labels_created": created})
         return {"material": material, "results": results}
 
     result = conn.safe_call(_apply)
     if result["success"]:
         data = result["result"]
         total = sum(r["labels_updated"] for r in data["results"])
-        return ToolResult.ok(f"{len(rows)} мөрөнд «{material}» гэж {total} шошго бичив", **data)
+        made = sum(r.get("labels_created", 0) for r in data["results"])
+        extra = f"（шинээр {made} шошго үүсгэв）" if made else ""
+        return ToolResult.ok(f"{len(rows)} мөрөнд «{material}» гэж {total} шошго бичив{extra}", **data)
     return ToolResult.fail(result.get("error", "面料标签写入失败"))
 
 
