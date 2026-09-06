@@ -4,6 +4,8 @@
 """
 
 import base64
+import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,6 +20,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent.runner import SignageAgent
+from tools.jersey import set_jersey_players
 
 
 st.set_page_config(page_title="CorelChamp", page_icon="🏆", layout="wide")
@@ -43,6 +46,43 @@ _BOT_AVATAR_SVG = (
 )
 BOT_AVATAR = "data:image/svg+xml," + _BOT_AVATAR_SVG
 USER_AVATAR = "😎"
+
+
+# Зурган дээрх өгөгдлийг заавал JSON блок болгож гаргуулна — AI буруу уншсан нэр/дугаарыг
+# хэрэглэгч энд шалгаж засаад, зөвхөн засварласны дараа л CorelDRAW руу бичнэ ("material
+# бэлдэхээс өмнө материал дэмий үрэхгүй байх" гэсэн зорилготой, хэрэглэгчийн шаардсанаар).
+_EXTRACTION_PROMPT = """You are reading a photo related to sports jersey production (a roster,
+size chart, or handwritten list of players).
+
+First answer in plain English. Then, ALWAYS output a fenced JSON code block — even if the
+photo has nothing to do with a roster (in that case output an empty array) — with this exact
+shape, one object per player/row you can see in the photo:
+
+```json
+[{"name": "...", "number": "...", "size": "..."}]
+```
+
+Leave a field as an empty string "" if it is not visible. Never skip this block — a human
+will review it in an editable table before anything is written to production, specifically
+to catch cases where you misread a name or number."""
+
+
+def _extract_roster_json(text: str) -> list[dict] | None:
+    """Хариултаас JSON массивыг ялгаж авна — эхлээд ```json ... ``` хашилтаас, олдохгүй бол
+    эхний [ -с сүүлийн ] хүртэлхийг оролдоно. Задлаж чадахгүй бол None (хүснэгт үзүүлэхгүй)."""
+    match = re.search(r"```json\s*(\[.*?\])\s*```", text, re.DOTALL)
+    raw = match.group(1) if match else None
+    if raw is None:
+        start, end = text.find("["), text.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            raw = text[start:end + 1]
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return None
+    return data if isinstance(data, list) else None
 
 
 def _typewriter(text: str, delay: float = 0.015):
@@ -278,9 +318,11 @@ if submission:
             {"type": "image_url", "image_url": {"url": uri}} for uri in data_uris
         ]
         agent_input = content_blocks
+        run_system_prompt = _EXTRACTION_PROMPT
     else:
         agent: SignageAgent = st.session_state.agent
         agent_input = prompt_text
+        run_system_prompt = None
 
     # 运行 Agent，实时渲染事件 —— 思考/工具调用放进可折叠的 status（真正的"加载中"效果），
     # 最终答案作为普通聊天气泡显示在 status 外面，不再用一整块绿色 success 框包住回答
@@ -290,7 +332,7 @@ if submission:
         final_event = None
 
         with st.status("Thinking…", expanded=True) as status:
-            for event in agent.run_single_stream(agent_input):
+            for event in agent.run_single_stream(agent_input, system_prompt=run_system_prompt):
                 etype = event["type"]
 
                 if etype == "thinking":
@@ -358,10 +400,73 @@ if submission:
             st.session_state.messages.append({"role": "error", "content": final_event["error"]})
         elif final_event and final_event["success"]:
             text = final_text or final_event["message"]
-            st.write_stream(_typewriter(text))
+            roster = _extract_roster_json(text) if uploaded_images else None
+            # Хэрэглэгчид JSON блокыг харуулах шаардлагагүй — доор хүснэгт болгож харуулна,
+            # эндхийн хариулт зөвхөн AI-ийн үг хэллэгийн тайлбар байх ёстой
+            display_text = re.sub(r"```json\s*\[.*?\]\s*```", "", text, flags=re.DOTALL).strip()
+            st.write_stream(_typewriter(display_text or text))
             st.caption(f"Total {final_event['turns']} turns, {final_event['tool_calls']} tool calls")
-            st.session_state.messages.append({"role": "assistant", "content": text})
+            st.session_state.messages.append({"role": "assistant", "content": display_text or text})
+            if roster:
+                st.session_state.pending_roster = roster
         elif final_event:
             msg = f"❌ {final_event['message']}"
             st.error(msg)
             st.session_state.messages.append({"role": "assistant", "content": msg})
+
+# =============================================================================
+# Зурганаас уншсан өгөгдлийг шалгах хүснэгт — CorelDRAW руу бичихээс ӨМНӨ хүн
+# нэр/дугаарыг засаж болно (AI буруу уншсаны улмаас материал дэмий үрэхгүйн тулд).
+# submission блокоос ГАДНА байх ёстой — эс тэгвэл хүснэгтийг засах/товч дарах бүрт
+# дахин ачаалахад pending_roster алга болно.
+# =============================================================================
+
+if st.session_state.get("pending_roster"):
+    st.divider()
+    st.subheader("📋 Зурганаас уншсан өгөгдөл")
+    st.caption(
+        "AI-ийн уншсан нэр/дугаар — эндээс шалгаад буруу бол засаад доороос "
+        "«Урьдчилан харах» дараад зөв бол «CorelDRAW-д бичих» дарна уу. Only name/number "
+        "get written right now — size is shown for your own reference only."
+    )
+    edited_roster = st.data_editor(
+        st.session_state.pending_roster,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="roster_editor",
+    )
+
+    start_row = st.number_input(
+        "Эхлэх мөрийн дугаар (1-р хүн аль мөрөнд очих вэ — scan_jersey_rows-оор шалгаарай)",
+        min_value=1, value=1, step=1, key="roster_start_row",
+    )
+
+    def _roster_updates() -> list[dict]:
+        return [
+            {"row": int(start_row) + i, "name": r.get("name", ""), "number": r.get("number", "")}
+            for i, r in enumerate(edited_roster)
+            if r.get("name") or r.get("number")
+        ]
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("👁️ Урьдчилан харах", use_container_width=True):
+            result = set_jersey_players(_roster_updates(), dry_run=True)
+            if result.success:
+                st.success(result.message)
+                st.json(result.data)
+            else:
+                st.error(result.error)
+    with col2:
+        if st.button("✅ CorelDRAW-д бичих", type="primary", use_container_width=True):
+            result = set_jersey_players(_roster_updates(), dry_run=False)
+            if result.success:
+                st.success(result.message)
+                del st.session_state.pending_roster
+                st.rerun()
+            else:
+                st.error(result.error)
+    with col3:
+        if st.button("❌ Цуцлах", use_container_width=True):
+            del st.session_state.pending_roster
+            st.rerun()
