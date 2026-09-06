@@ -331,14 +331,16 @@ def set_jersey_players(updates: list, dry_run: bool = False) -> ToolResult:
 #
 # 行与行之间的间距不是固定值——不同体型（童装/成人/大码）面板高度不同，行间距会跟着变。
 # 相邻两行之间的固定规则是面板边缘留白 20mm（已向用户确认），不是锚点到锚点的固定距离。
-_ROW_Y_BAND = 600.0  # mm，用于按 Y 坐标圈出"一整行"的粗筛半径，取最大面板高度(1000mm)的
-                     # 六成左右——宽到能包住最高档体型的面板+十字标记，窄到不会连到下一行
 _ROW_CLEARANCE = 20.0  # mm，相邻两行"面板边缘到面板边缘"的固定留白（已向用户确认，与体型无关）
 
 
-def _row_shapes_by_y(doc, anchor_y: float) -> list:
-    """整行的全部 top-level 形状（含面板/十字标记/面料标签等非文字形状），按 Y 坐标而非
-    名称收集——面料标签和两个十字标记的命名在行内/行间都有重复，靠名字识别不可靠。"""
+def _row_shapes_by_y(doc, anchor_y: float, all_anchors: list[float]) -> list:
+    """整行的全部 top-level 形状（含面板/十字标记/面料标签等非文字形状），按"离哪个锚点
+    最近"分类，不用固定半径圈——固定半径（曾用 600mm，按旧的"最大面板 1000mm"假设定的）
+    在 resize_jersey_row 出现之后就靠不住了：一行被放大到 1500mm 高之后，半径要么包不住
+    自己的全部形状，要么会连到隔壁行去（2026-09-06 用一次性测试文档验证过这个真实 bug）。
+    "离哪个锚点最近算哪行"不依赖固定尺寸假设，行多大都一样成立，前提是行与行之间确实留了
+    间隙（duplicate_jersey_rows 已保证）。all_anchors 需要是当前文档里全部行的锚点列表。"""
     shapes = doc.ActivePage.Shapes
     out = []
     for i in range(1, shapes.Count + 1):
@@ -347,7 +349,8 @@ def _row_shapes_by_y(doc, anchor_y: float) -> list:
             y = s.PositionY
         except Exception:
             continue
-        if abs(y - anchor_y) <= _ROW_Y_BAND:
+        nearest = min(all_anchors, key=lambda a: abs(a - y))
+        if abs(nearest - anchor_y) < 1e-6:
             out.append(s)
     return out
 
@@ -399,7 +402,8 @@ def duplicate_jersey_rows(source_row: int, count: int = 1) -> ToolResult:
             raise ValueError(f"行号 {source_row} 超出范围，当前共 {len(rows)} 件球衣")
 
         source_anchor_y = rows[source_row - 1]["anchor_y"]
-        source_shapes = _row_shapes_by_y(doc, source_anchor_y)
+        all_anchors = [r["anchor_y"] for r in rows]
+        source_shapes = _row_shapes_by_y(doc, source_anchor_y, all_anchors)
         if len(source_shapes) < 8:
             raise ValueError(
                 f"第 {source_row} 行只找到 {len(source_shapes)} 个形状，"
@@ -506,7 +510,8 @@ def resize_jersey_row(row: int, width_cm: float, length_cm: float) -> ToolResult
             raise ValueError(f"{row}-р мөр хязгаараас гарсан, одоо нийт {len(rows)} джерси байна")
 
         anchor_y = rows[row - 1]["anchor_y"]
-        row_shapes = _row_shapes_by_y(doc, anchor_y)
+        all_anchors = [r["anchor_y"] for r in rows]
+        row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
         row_panels = [s for s in row_shapes if s.SizeWidth > 200 and s.SizeHeight > 200]
         if len(row_panels) != 2:
             raise ValueError(
@@ -576,10 +581,11 @@ def set_jersey_material(rows: list, material: str) -> ToolResult:
             if row < 1 or row > len(all_rows):
                 raise ValueError(f"行号 {row} 超出范围，当前共 {len(all_rows)} 件球衣")
 
+        all_anchors = [r["anchor_y"] for r in all_rows]
         results = []
         for row in rows:
             anchor_y = all_rows[row - 1]["anchor_y"]
-            row_shapes = _row_shapes_by_y(doc, anchor_y)
+            row_shapes = _row_shapes_by_y(doc, anchor_y, all_anchors)
             labels = []
             for s in row_shapes:
                 try:
