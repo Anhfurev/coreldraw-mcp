@@ -46,7 +46,7 @@ This project exposes CorelDRAW as an MCP (Model Context Protocol) tool server. A
 | Layer | Component | Description |
 |-------|-----------|-------------|
 | Agent | `server/agent/runner.py` | LLM tool-call loop; supports Claude / DeepSeek / Qwen |
-| MCP tools | `server/server.py` + `server/tools/` | 30+ CorelDRAW tools, HTTP or stdio transport |
+| MCP tools | `server/server.py` + `server/tools/` | 81 CorelDRAW tools, HTTP or stdio transport |
 | CorelDRAW | `server/core/connection.py` | Drives local CorelDRAW via pywin32 COM API |
 
 **Tool modules**
@@ -54,19 +54,55 @@ This project exposes CorelDRAW as an MCP (Model Context Protocol) tool server. A
 | Module | Tools | Functionality |
 |--------|-------|---------------|
 | `document` | 7 | Open template, create, save, close, page management |
-| `shapes` | 11 | Rectangle / ellipse / line drawing, SVG / image import, boolean ops |
-| `text` | 5 | Text replacement, style, overflow detection, convert to curves |
+| `shapes` | 17 | Rectangle / ellipse / line drawing, SVG / image import, boolean ops, align/distribute/rotate/scale/group, **rename, duplicate (single/batch/multi-shape), lock, flip** |
+| `text` | 6 | Text replacement, **read full content**, style (font/size/bold/italic/**underline/line-spacing/char-spacing**), overflow detection, convert to curves |
 | `colors` | 8 | CMYK / RGB / Pantone fill & stroke, RGB compliance check |
 | `layers` | 5 | Create, query, assign, show/hide, lock layers |
 | `export` | 7 | PDF / DXF / AI / SVG / PNG export, visual preview, batch export |
 | `preflight` | 4 | Size check, text overflow, missing fonts, color report |
 | `data_merge` | 3 | Excel data read, barcode / QR code generation |
+| `vision` | 1 | **`view_canvas`** — return a live screenshot of the canvas as an actual image the agent can see |
+
+**Shape editing tools (rename / resize / duplicate / lock / flip)**
+
+| Tool | Purpose |
+|------|---------|
+| `set_shape_size` | Set a shape's exact width × height (mm) |
+| `set_shape_position` | Move a shape to an exact x, y |
+| `rename_shape` | Rename a shape (e.g. `box_1` → `room_301`) |
+| `duplicate_shape` | Copy one shape, offset by x/y, optional new name |
+| `duplicate_shape_batch` | Copy one shape N times in one call, with `{name}`/`{n}` name-pattern numbering — e.g. stamp out a row of boxes named `box_1`…`box_20` |
+| `duplicate_shapes` | Copy a whole set of shapes together, keeping their relative layout |
+| `set_shape_locked` | Lock/unlock a shape against accidental edits |
+| `flip_shape` | Mirror a shape horizontally or vertically |
+| `save_document` | Save (or Save As) the current document |
+
+These cover the "resize a box, name it, duplicate it N times, save" workflow end to end.
+
+**Vision — can the agent see the canvas?**
+
+Two different kinds of "seeing" are available:
+
+- **Structured (no vision needed)**: `select_shapes()`, `find_shape_by_name()`, and
+  `get_document_info()` return every shape's name, id, exact position/size, rotation,
+  lock state and layer as plain data — an agent can inspect and reason about the whole
+  canvas without ever looking at a picture.
+- **Actual vision**: `view_canvas(width=1000)` takes a live screenshot of the current
+  page and returns it as a real image in the tool result (via FastMCP's `Image` type,
+  MCP `ImageContent`) — not a file path. A vision-capable client (Claude Desktop/Code)
+  sees it directly, the same as a pasted screenshot, useful for a final visual sanity
+  check after a batch of edits. This is the one tool in the project that doesn't return
+  `ToolResult` — see the note in `CLAUDE.md`/`AGENTS.md`.
 
 ---
 
 ## Requirements
 
-- **OS**: Windows 10 / 11 (CorelDRAW COM API is Windows-only)
+- **OS**: Windows 10 / 11 (CorelDRAW COM API is Windows-only). Note: CorelDRAW's modern
+  native Mac app (2024+) has no scripting/automation interface at all (no AppleScript
+  dictionary, no equivalent of COM) — verified by inspecting the app bundle for a `.sdef`
+  file and `Info.plist` scripting keys, both absent. There is currently no way for this
+  project, or any external tool, to drive CorelDRAW running on macOS.
 - **Python**: 3.11+, **64-bit** (must match CorelDRAW's bitness)
 - **CorelDRAW**: X6 or later (must be installed and activated; X6 verified compatible)
 - **LLM API Key**: one of Anthropic Claude, DeepSeek, or Alibaba Qwen
@@ -119,9 +155,11 @@ Open `http://localhost:8501`, enter your API key in the sidebar, and control Cor
 
 > **Note**: The Streamlit UI connects to CorelDRAW directly via COM. Do **not** run `server.py` at the same time — two simultaneous COM connections can cause conflicts.
 
-### Option 2 — Claude Desktop / OpenCode via MCP HTTP
+### Option 2 — Claude Code / OpenCode via project `.mcp.json` (HTTP)
 
-The repo ships a `.mcp.json` that Claude Desktop and OpenCode auto-discover:
+The repo ships a `.mcp.json` that Claude Code and OpenCode auto-discover as a
+project-level MCP config (this is a different mechanism from the literal Claude
+Desktop *app* — see Option 2b if that's what you're using):
 
 ```bash
 # Start MCP Server in HTTP mode
@@ -129,12 +167,74 @@ cd server
 MCP_TRANSPORT=streamable-http python server.py
 ```
 
+### Option 2b — Claude Desktop app (recommended for a single Windows machine)
+
+The Claude Desktop app does **not** read this repo's `.mcp.json` — it has its own,
+separate global config file, and it launches/manages the server process itself over
+stdio rather than you starting `server.py` by hand. No LLM API key is needed for this
+path (Claude Desktop uses your own Claude subscription; the `.env` API key is only
+used by the standalone Streamlit chat UI in Option 1).
+
+1. Edit (create if missing) `%APPDATA%\Claude\claude_desktop_config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "coreldraw": {
+         "command": "C:\\path\\to\\coreldraw-mcp\\.venv\\Scripts\\python.exe",
+         "args": ["C:\\path\\to\\coreldraw-mcp\\server\\server.py"]
+       }
+     }
+   }
+   ```
+   Use the **full path** to the `python.exe` inside this project's virtualenv (not a
+   bare `python`), so it runs with the right dependencies installed.
+2. Make sure CorelDRAW is already running.
+3. Fully quit and reopen Claude Desktop. It starts/stops `server.py` automatically —
+   you should never need to run it manually in this mode.
+4. In a new chat, ask Claude Desktop to do something with CorelDRAW (e.g. "list all
+   shapes on the current page") — it should show the tool call.
+
 ### Option 3 — stdio mode (for MCP client integration)
 
 ```bash
 cd server
 MCP_TRANSPORT=stdio python server.py
 ```
+
+### Option 4 — Windows runs the server, another machine (e.g. a Mac) runs the client
+
+CorelDRAW's automation API is COM, which only exists on Windows — there is no Mac/Linux
+equivalent, so the server process itself must run on the Windows box that has CorelDRAW
+installed. A client on another machine (a MacBook running Claude Desktop/Claude Code, for
+example) can still drive it, over the network, using the same HTTP transport as Option 2:
+
+1. On the **Windows** machine (with CorelDRAW running):
+   ```bash
+   cd server
+   set MCP_HOST=0.0.0.0
+   set MCP_TRANSPORT=streamable-http
+   python server.py
+   ```
+   `0.0.0.0` binds to all network interfaces instead of just localhost. Find this
+   machine's LAN IP with `ipconfig` (look for the `IPv4 Address`, e.g. `192.168.1.50`).
+   Allow inbound TCP on `MCP_PORT` (default `8765`) through Windows Firewall.
+
+2. On the **client** machine, point its MCP config at the Windows box's LAN IP instead of
+   `127.0.0.1`. For Claude Desktop/Code, edit `.mcp.json`:
+   ```json
+   {
+     "mcpServers": {
+       "coreldraw": {
+         "type": "http",
+         "url": "http://192.168.1.50:8765/mcp"
+       }
+     }
+   }
+   ```
+
+Security note: this exposes the CorelDRAW automation endpoint to your LAN with no
+authentication. Only do this on a trusted local network (e.g. behind your home/office
+router), never expose the port directly to the internet.
 
 ---
 
@@ -215,3 +315,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Note: the COM API is Windows-only, so en
 ## License
 
 Apache 2.0 © 2026 深圳市玄熵智能科技有限责任公司 (Xuanshang Intelligent Technology Co., Ltd., Shenzhen)
+#   c o r e l d r a w - m c p  
+ 

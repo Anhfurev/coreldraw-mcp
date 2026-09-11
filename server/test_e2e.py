@@ -1,4 +1,4 @@
-"""端到端验证脚本 — 单条门牌生成完整流程测试 + P0/P1 新工具覆盖
+"""端到端验证脚本 — 单条门牌生成完整流程测试 + P0/P1/P2 新工具覆盖
 
 使用方法（Windows + CorelDRAW 环境）:
     python server/test_e2e.py
@@ -14,7 +14,9 @@
      8. 导出文件（PDF/DXF/PNG/JPEG/PDF-X）
      9. P0 排版工具（对齐/分布/层级/旋转/缩放/群组/删除）
     10. P1 增强工具（选择/渐变/透明度/辅助线/页面操作）
-    11. 清理测试文件
+    11. P2 重命名/复制/翻转/锁定工具（重命名/单个复制/批量复制/整体复制/锁定/翻转）
+    12. 文字读取/样式扩展/视觉能力（完整内容读取/下划线/行距/字间距/画布截图）
+    13. 清理测试文件
 """
 
 import os
@@ -41,6 +43,8 @@ from tools.document import (
 from tools.text import (
     create_text_frame,
     set_text_content,
+    get_text_content,
+    set_text_style,
     check_text_overflow,
     convert_text_to_curves,
 )
@@ -58,6 +62,12 @@ from tools.shapes import (
     select_shapes,
     powerclip,
     group_shapes,
+    rename_shape,
+    duplicate_shape,
+    duplicate_shape_batch,
+    duplicate_shapes,
+    set_shape_locked,
+    flip_shape,
 )
 from tools.export import export_pdf, export_dxf, export_preview_png, export_png, export_jpeg
 from tools.preflight import check_dimensions, check_rgb_colors, check_text_overflow_all, get_color_report
@@ -68,6 +78,7 @@ from tools.colors import (
     set_transparency,
 )
 from tools.layers import create_layer, assign_to_layer, get_layers
+from tools.vision import view_canvas
 
 
 class TestResult:
@@ -446,12 +457,87 @@ def test_step10_advanced_p1(tr: TestResult):
         tr.skip("PowerClip 测试", "无法创建测试形状")
 
 
-# ========== 步骤 11：清理 ==========
+# ========== 步骤 11：P2 重命名/复制/翻转/锁定工具 ==========
 
 
-def test_step11_cleanup(tr: TestResult, output_dir: str):
-    """步骤11：清理 — 删除测试页 + 关闭文档 + 断开连接"""
-    print("\n[步骤11] 清理…")
+def test_step11_rename_duplicate(tr: TestResult):
+    """步骤11：P2 工具测试（重命名/单个复制/批量复制/整体复制/锁定/翻转）"""
+    print("\n[步骤11] P2 重命名/复制/翻转/锁定工具…")
+
+    base = create_rectangle(10, 100, 20, 15, 0)
+    if not base.success:
+        tr.skip("P2 工具测试", "无法创建测试形状")
+        return
+    base_id = base.data.get("shape_id", "")
+
+    result = rename_shape(base_id, "base_rect")
+    tr.step(f"重命名 {base_id[:8]} → base_rect", result)
+    lookup_id = "base_rect" if result.success else base_id
+
+    result = duplicate_shape(lookup_id, offset_x=25, offset_y=0)
+    tr.step("单个复制 base_rect (+25,0)", result)
+    single_copy_id = result.data.get("shape_id", "") if result.success else ""
+
+    result = duplicate_shape_batch(lookup_id, count=3, offset_x=0, offset_y=20, name_pattern="base_rect_{n}")
+    tr.step("批量复制 base_rect ×3 (0,+20/份)", result)
+    batch_ids = [c["shape_id"] for c in result.data.get("created", [])] if result.success else []
+
+    if single_copy_id:
+        result = duplicate_shapes(f"{lookup_id},{single_copy_id}", offset_x=0, offset_y=40)
+        tr.step("整体复制 base_rect+副本 (0,+40)", result)
+        group_copy_ids = [c["shape_id"] for c in result.data.get("created", [])] if result.success else []
+    else:
+        tr.skip("整体复制测试", "单个复制未成功，缺少第二个形状")
+        group_copy_ids = []
+
+    result = set_shape_locked(lookup_id, True)
+    tr.step("锁定 base_rect", result)
+    result = set_shape_locked(lookup_id, False)
+    tr.step("解锁 base_rect", result)
+
+    if single_copy_id:
+        result = flip_shape(single_copy_id, "horizontal")
+        tr.step(f"水平翻转 {single_copy_id[:8]}", result)
+
+    # 清理本步骤创建的所有形状，避免污染后续导出
+    for sid in [lookup_id, single_copy_id, *batch_ids, *group_copy_ids]:
+        if sid:
+            delete_shape(sid)
+
+
+# ========== 步骤 12：文字读取/样式扩展/视觉能力 ==========
+
+
+def test_step12_text_and_vision(tr: TestResult):
+    """步骤12：文字完整内容读取、扩展样式（下划线/行距/字间距/显式取消粗体）、视觉截图"""
+    print("\n[步骤12] 文字读取/样式扩展/视觉能力…")
+
+    result = get_text_content("placeholder_room")
+    tr.step("读取 placeholder_room 完整内容", result)
+
+    result = set_text_style("placeholder_room", bold=True, underline=True, line_spacing=120, char_spacing=110)
+    tr.step("设置 placeholder_room 样式（粗体+下划线+行距120%+字间距110%）", result)
+
+    result = set_text_style("placeholder_room", bold=False)
+    tr.step("显式取消 placeholder_room 粗体", result)
+
+    # view_canvas 不返回 ToolResult（返回 Image 或错误字符串），单独校验
+    from fastmcp.utilities.types import Image
+
+    canvas = view_canvas(600)
+    if isinstance(canvas, Image):
+        size = len(canvas.data) if getattr(canvas, "data", None) else 0
+        tr.step(f"视觉截图 view_canvas(600) — {size:,} bytes PNG", ToolResult.ok("OK"))
+    else:
+        tr.step("视觉截图 view_canvas(600)", ToolResult.fail(str(canvas)))
+
+
+# ========== 步骤 13：清理 ==========
+
+
+def test_step13_cleanup(tr: TestResult, output_dir: str):
+    """步骤13：清理 — 删除测试页 + 关闭文档 + 断开连接"""
+    print("\n[步骤13] 清理…")
 
     # 删除第2页（测试页）
     result = delete_page(2)
@@ -474,7 +560,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     print("=" * 60)
-    print("  CorelDRAW MCP — 端到端测试 (73 工具)")
+    print("  CorelDRAW MCP — 端到端测试 (81 工具)")
     print(f"  输出目录: {output_dir}")
     print("=" * 60)
 
@@ -498,9 +584,11 @@ def main():
     # 步骤9-10：新增 P0/P1 工具测试
     test_step9_shapes_p0(tr)
     test_step10_advanced_p1(tr)
+    test_step11_rename_duplicate(tr)
+    test_step12_text_and_vision(tr)
 
-    # 步骤11：清理
-    test_step11_cleanup(tr, output_dir)
+    # 步骤13：清理
+    test_step13_cleanup(tr, output_dir)
 
     print(tr.summary())
 

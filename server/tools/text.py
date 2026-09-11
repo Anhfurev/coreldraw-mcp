@@ -1,5 +1,7 @@
 """文字处理工具 — 替换文字内容、样式设置、溢出检查、创建文本框"""
 
+from typing import Optional
+
 from core.connection import get_connection
 from core.models import ToolResult
 
@@ -110,6 +112,33 @@ def _set_text_bold(text, bold: bool) -> None:
             continue
 
 
+def _set_text_underline(text, underline: bool) -> None:
+    for setter in (
+        lambda: setattr(text.Story, "Underline", 1 if underline else 0),
+        lambda: setattr(text.FontProperties, "Underline", underline),
+    ):
+        try:
+            setter()
+            return
+        except Exception:
+            continue
+
+
+def _set_text_spacing(text, attr: str, value: float) -> bool:
+    """设置行距/字间距（百分比）。不同 CorelDRAW 版本路径不同，逐一尝试。"""
+    for setter in (
+        lambda: setattr(text.Story.Paragraph.Spacing, attr, value),
+        lambda: setattr(text.Paragraph.Spacing, attr, value),
+        lambda: setattr(text.Story, attr, value),
+    ):
+        try:
+            setter()
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def _apply_default_text_style(shape, frame_height: float) -> None:
     text = shape.Text
     size = max(8.0, min(18.0, frame_height * 0.55))
@@ -145,11 +174,19 @@ def set_text_style(
     shape_id: str,
     font: str = "",
     size: float = 0,
-    bold: bool = False,
-    italic: bool = False,
+    bold: Optional[bool] = None,
+    italic: Optional[bool] = None,
+    underline: Optional[bool] = None,
     alignment: str = "",
+    line_spacing: Optional[float] = None,
+    char_spacing: Optional[float] = None,
 ) -> ToolResult:
-    """设置文字形状的样式：字体、字号、粗体、斜体、对齐。"""
+    """设置文字形状的样式：字体、字号、粗体、斜体、下划线、对齐、行距、字间距。
+    bold/italic/underline 留空(None)则不改动该项，显式传 True 或 False 可开启或关闭
+    （区别于旧版本，现在可以显式取消粗体/斜体，而不仅仅是开启）。
+    line_spacing/char_spacing 对应 CorelDRAW 的 CharSpacing/LineSpacing 属性，
+    0 表示正常间距（无额外加宽），正数表示在正常间距基础上增加的百分比（不是"正常值的倍数"）；
+    需要收紧字符间距时传负数（如 -30）。留空(None)则不改动该项——显式传 0 会把间距重置为正常。"""
     conn = get_connection()
     if not conn.status.connected:
         return ToolResult.fail("CorelDRAW 未连接")
@@ -166,23 +203,30 @@ def set_text_style(
         if size > 0:
             _set_text_size(text, size)
             changes["size"] = size
-        if bold:
-            _set_text_bold(text, True)
-            changes["bold"] = True
-        if italic:
+        if bold is not None:
+            _set_text_bold(text, bold)
+            changes["bold"] = bold
+        if italic is not None:
             try:
-                text.FontProperties.Italic = True
-                changes["italic"] = True
+                text.FontProperties.Italic = italic
+                changes["italic"] = italic
             except Exception:
                 pass
+        if underline is not None:
+            _set_text_underline(text, underline)
+            changes["underline"] = underline
         if alignment and alignment in _ALIGNMENT_MAP:
             try:
                 text.Alignment = _ALIGNMENT_MAP[alignment]
                 changes["alignment"] = alignment
             except Exception:
                 pass
+        if line_spacing is not None and _set_text_spacing(text, "LineSpacing", line_spacing):
+            changes["line_spacing"] = line_spacing
+        if char_spacing is not None and _set_text_spacing(text, "CharSpacing", char_spacing):
+            changes["char_spacing"] = char_spacing
         if not changes:
-            raise ValueError("未指定任何样式变更")
+            raise ValueError("未指定任何样式变更，或指定的样式在当前 CorelDRAW 版本不受支持")
         return {"shape_id": shape_id, "changes": changes}
 
     result = conn.safe_call(_style)
@@ -266,6 +310,82 @@ def convert_text_to_curves(shape_id: str) -> ToolResult:
     if result["success"]:
         return ToolResult.ok(f"文字已转曲: {shape_id}", **result["result"])
     return ToolResult.fail(result.get("error", "文字转曲失败"))
+
+
+def get_text_content(shape_id: str) -> ToolResult:
+    """读取文字形状的完整内容（不截断，区别于 list_all_text_shapes 的预览截断）。
+    返回 content、text_type（artistic/paragraph）、length。shape_id 为名称或 StaticID。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _get():
+        shape = _find_text_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到文字形状: {shape_id}")
+        text = shape.Text
+        content = _get_text_content(text)
+        try:
+            text_type = "paragraph" if text.Type == _CDR_PARAGRAPH_TEXT else "artistic"
+        except Exception:
+            text_type = "unknown"
+        return {"shape_id": shape_id, "content": content, "text_type": text_type, "length": len(content)}
+
+    result = conn.safe_call(_get)
+    if result["success"]:
+        r = result["result"]
+        preview = r["content"][:50] + "…" if len(r["content"]) > 50 else r["content"]
+        return ToolResult.ok(f"内容: '{preview}'", **r)
+    return ToolResult.fail(result.get("error", "读取文字内容失败"))
+
+
+def create_artistic_text(x: float, y: float, text: str, font: str = "", size: float = 12) -> ToolResult:
+    """创建美术字（单行文字，非段落文本框）。形状的宽高即实际字形包围盒，
+    适合需要精确测量/缩放的场景（如按目标高度缩放文字）。返回形状 ID 与实际尺寸。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _create():
+        doc = conn.app.ActiveDocument
+        doc.Unit = _CDR_MILLIMETER
+        layer = doc.ActivePage.ActiveLayer
+        shape = None
+        for attempt in (
+            lambda: layer.CreateArtisticText(x, y, text, 0, 0, 0, font, size, False, False, False),
+            lambda: layer.CreateArtisticText(x, y, text),
+        ):
+            try:
+                shape = attempt()
+                break
+            except Exception:
+                continue
+        if shape is None:
+            raise RuntimeError("创建美术字失败，当前 CorelDRAW 版本不支持已知的 CreateArtisticText 签名")
+        if font and not shape.Text.Story.Font == font:
+            try:
+                shape.Text.Story.Font = font
+            except Exception:
+                pass
+        try:
+            shape.Text.Story.Size = size
+        except Exception:
+            pass
+        shape.Name = f"text_{shape.StaticID}"
+        return {
+            "shape_id": str(shape.StaticID),
+            "name": shape.Name,
+            "width": round(shape.SizeWidth, 2),
+            "height": round(shape.SizeHeight, 2),
+            "x": round(shape.PositionX, 2),
+            "y": round(shape.PositionY, 2),
+            "content": text,
+        }
+
+    result = conn.safe_call(_create)
+    if result["success"]:
+        return ToolResult.ok(f"美术字创建成功: '{text}'", **result["result"])
+    return ToolResult.fail(result.get("error", "创建美术字失败"))
 
 
 def create_text_frame(x: float, y: float, width: float, height: float, text: str) -> ToolResult:

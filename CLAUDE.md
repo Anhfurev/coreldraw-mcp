@@ -42,6 +42,10 @@ MCP Server 默认 `stdio` 传输，设 `MCP_TRANSPORT=streamable-http` 启动 HT
 - `check_rgb_colors` 在两个文件存在：`colors.py` 用于交互式检查，`preflight.py` 用于批量质检。Agent runner 里做了去重。
 - PNG 导出有两套 API：`ExportBitmap`（主方案）和 `Export`（fallback），因不同 CorelDRAW 版本行为不一
 - Pantone 填充的 `FindPantone` 方法在不同 CorelDRAW 版本路径不同，用了 try/except 双方案
+- **`tools/vision.py` 的 `view_canvas` 是全项目唯一不返回 `ToolResult` 的工具**：MCP 图片内容必须
+  通过 `fastmcp.utilities.types.Image` 类型返回才会被自动转换为图片内容块（而不是被序列化成一段
+  JSON 文本）。成功时返回 `Image(data=..., format="png")`，失败时返回一段说明文字（str）。
+  新增其他"视觉/图片返回"类工具时应遵循同样的例外模式，其余所有工具仍必须遵守 `ToolResult` 约定。
 
 ## Agent (runner.py) 关键约定
 

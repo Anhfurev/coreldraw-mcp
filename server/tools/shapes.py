@@ -63,8 +63,25 @@ def _shape_info(shape) -> dict:
             "height": round(shape.SizeHeight, 2),
         }
         try:
+            info["x"] = round(shape.PositionX, 2)
+            info["y"] = round(shape.PositionY, 2)
+        except Exception:
+            pass
+        try:
             info["center_x"] = round(shape.CenterX, 2)
             info["center_y"] = round(shape.CenterY, 2)
+        except Exception:
+            pass
+        try:
+            info["rotation"] = round(shape.RotationAngle, 2)
+        except Exception:
+            pass
+        try:
+            info["locked"] = shape.Locked
+        except Exception:
+            pass
+        try:
+            info["layer"] = shape.Layer.Name
         except Exception:
             pass
         return info
@@ -812,3 +829,166 @@ def powerclip(content_shape_id: str, container_shape_id: str) -> ToolResult:
             **result["result"],
         )
     return ToolResult.fail(result.get("error", "PowerClip 操作失败"))
+
+
+# ========== P2 重命名/复制/翻转/锁定 ==========
+
+# cdrFlipDirection: cdrFlipHorizontal=0, cdrFlipVertical=1 (硬编码，来自 CorelDRAW 类型库)
+_FLIP_DIRECTIONS = {"horizontal": 0, "vertical": 1}
+
+
+def rename_shape(shape_id: str, new_name: str) -> ToolResult:
+    """重命名形状。shape_id 为当前名称或 StaticID，new_name 为新名称。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _rename():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        old_name = shape.Name or ""
+        shape.Name = new_name
+        return {"shape_id": _static_id(shape), "old_name": old_name, "new_name": new_name}
+
+    result = conn.safe_call(_rename)
+    if result["success"]:
+        r = result["result"]
+        return ToolResult.ok(f"形状已重命名: '{r['old_name']}' → '{r['new_name']}'", **r)
+    return ToolResult.fail(result.get("error", "重命名失败"))
+
+
+def duplicate_shape(shape_id: str, offset_x: float = 0, offset_y: float = 0, new_name: str = "") -> ToolResult:
+    """复制单个形状，副本相对原形状偏移 offset_x/offset_y（mm，默认 0 即原地重叠，
+    通常配合 set_shape_position 使用）。new_name 留空则自动生成 "<原名>_copy"。
+    返回新形状的完整信息（含 shape_id），原形状不受影响。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _duplicate():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        original_name = shape.Name or str(shape.StaticID)
+        new_shape = shape.Duplicate(offset_x, offset_y)
+        new_shape.Name = new_name if new_name else f"{original_name}_copy_{new_shape.StaticID}"
+        return {"source_shape_id": shape_id, "shape_id": _static_id(new_shape), **_shape_info(new_shape)}
+
+    result = conn.safe_call(_duplicate)
+    if result["success"]:
+        r = result["result"]
+        return ToolResult.ok(f"形状已复制: {shape_id} → {r['shape_id']}", **r)
+    return ToolResult.fail(result.get("error", "复制形状失败"))
+
+
+def duplicate_shape_batch(
+    shape_id: str,
+    count: int,
+    offset_x: float = 0,
+    offset_y: float = 0,
+    name_pattern: str = "",
+) -> ToolResult:
+    """批量复制同一个形状，一次生成多份副本（"each by each" 场景，如批量生产同款标牌坯）。
+    count 为副本数量（不含原始形状，必须 ≥1）。
+    第 i 份（i 从 1 开始）相对原形状偏移 (offset_x*i, offset_y*i)，用于自动排成一行/一列。
+    name_pattern 支持占位符 {name}（原名称）和 {n}（序号，从 1 开始），留空则用 "{name}_copy{n}"。
+    返回每份副本的 shape_id 及完整信息，可直接用于后续逐个 set_shape_size / set_text_content / rename_shape。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    if count < 1:
+        return ToolResult.fail("count 必须大于等于 1")
+
+    def _duplicate_batch():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        original_name = shape.Name or str(shape.StaticID)
+        pattern = name_pattern or "{name}_copy{n}"
+        created = []
+        for i in range(1, count + 1):
+            new_shape = shape.Duplicate(offset_x * i, offset_y * i)
+            new_shape.Name = pattern.replace("{name}", original_name).replace("{n}", str(i))
+            created.append({"shape_id": _static_id(new_shape), **_shape_info(new_shape)})
+        return {"source_shape_id": shape_id, "count": count, "created": created}
+
+    result = conn.safe_call(_duplicate_batch)
+    if result["success"]:
+        r = result["result"]
+        return ToolResult.ok(f"已批量复制 {r['count']} 份: {shape_id}", **r)
+    return ToolResult.fail(result.get("error", "批量复制失败"))
+
+
+def duplicate_shapes(shape_ids: str, offset_x: float = 0, offset_y: float = 0) -> ToolResult:
+    """整体复制多个形状并保持相对位置关系（如复制一整套已排好版的标牌元素）。
+    shape_ids 为逗号分隔的 ID 或名称列表，副本整体相对原始位置偏移 offset_x/offset_y（mm）。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _duplicate():
+        ids = [s.strip() for s in shape_ids.split(",") if s.strip()]
+        if not ids:
+            raise ValueError("请提供至少一个形状 ID")
+        shapes = []
+        for sid in ids:
+            shape = _find_shape(sid)
+            if shape is None:
+                raise ValueError(f"未找到形状: {sid}")
+            shapes.append(shape)
+        shape_range = _create_shape_range(shapes)
+        new_range = shape_range.Duplicate(offset_x, offset_y)
+        created = [{"shape_id": _static_id(s), **_shape_info(s)} for s in new_range]
+        return {"source_ids": ids, "count": len(created), "created": created}
+
+    result = conn.safe_call(_duplicate)
+    if result["success"]:
+        r = result["result"]
+        return ToolResult.ok(f"已整体复制 {r['count']} 个形状", **r)
+    return ToolResult.fail(result.get("error", "整体复制失败"))
+
+
+def set_shape_locked(shape_id: str, locked: bool) -> ToolResult:
+    """锁定或解锁形状，锁定后该形状在 CorelDRAW 界面中不可选中/编辑（不影响脚本操作）。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    def _set():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        shape.Locked = locked
+        return {"shape_id": shape_id, "locked": locked}
+
+    result = conn.safe_call(_set)
+    if result["success"]:
+        status = "已锁定" if locked else "已解锁"
+        return ToolResult.ok(f"形状{status}: {shape_id}", **result["result"])
+    return ToolResult.fail(result.get("error", "设置锁定状态失败"))
+
+
+def flip_shape(shape_id: str, direction: str) -> ToolResult:
+    """水平或垂直翻转（镜像）形状，围绕形状自身中心。direction: horizontal/vertical。"""
+    conn = get_connection()
+    if not conn.status.connected:
+        return ToolResult.fail("CorelDRAW 未连接")
+
+    direction = direction.lower()
+    if direction not in _FLIP_DIRECTIONS:
+        return ToolResult.fail(f"不支持的翻转方向: {direction}，可选: horizontal/vertical")
+
+    def _flip():
+        shape = _find_shape(shape_id)
+        if shape is None:
+            raise ValueError(f"未找到形状: {shape_id}")
+        shape.Flip(_FLIP_DIRECTIONS[direction])
+        return {"shape_id": shape_id, "direction": direction}
+
+    result = conn.safe_call(_flip)
+    if result["success"]:
+        label = "水平" if direction == "horizontal" else "垂直"
+        return ToolResult.ok(f"形状已{label}翻转: {shape_id}", **result["result"])
+    return ToolResult.fail(result.get("error", "翻转形状失败"))
